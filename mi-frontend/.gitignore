@@ -1,0 +1,34 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencias y builds
+node_modules/
+dist/
+dist-ssr/
+build/
+.cache/
+.parcel-cache/
+
+# Archivos de entorno
+.env
+.env.local
+.env.development
+.env.production
+
+# Editor y sistema
+.DS_Store
+.idea
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db
+node_modules/

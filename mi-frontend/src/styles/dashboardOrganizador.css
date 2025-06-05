@@ -1,0 +1,482 @@
+/* Reset general */
+html, body {
+  width: 100vw;
+  min-width: 100vw;
+  max-width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  font-family: Arial, sans-serif;
+  background: #fff;
+}
+
+/* Estructura general */
+.dashboard-bg,
+.dashboard-container,
+.table-wrapper {
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.dashboard-bg {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-container {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  height: auto;
+  overflow: visible;
+}
+
+.main-content {
+  padding: 0 32px;
+  width: 100%;
+  box-sizing: border-box;
+  padding-top: 100px;
+}
+
+/* Header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: 90px;
+  background: #fff;
+}
+
+.logo img {
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
+  display: block;
+}
+
+.profile-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 100%;
+}
+
+.profile-pic {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #eaeaea;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.username {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #222;
+  margin-bottom: 2px;
+}
+
+/* Botones */
+.logout-btn,
+.add-game-btn,
+.edit-btn,
+.delete-btn,
+.postulados-btn,
+.confirm-btn,
+.cancel-btn,
+.mini-assign-btn {
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.logout-btn {
+  background-color: #FF4B4B;
+  color: white;
+  padding: 10px 22px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  height: 40px;
+}
+.logout-btn:hover {
+  background-color: #e13a3a;
+}
+
+.add-game {
+  text-align: center;
+  margin: 16px 0;
+  width: 100%;
+}
+
+.add-game-btn {
+  background: #1ed760;
+  color: #111;
+  font-weight: bold;
+  padding: 12px 28px;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 8px #0001;
+  margin-bottom: 8px;
+}
+.add-game-btn:hover {
+  background: #17b94e;
+}
+
+.edit-btn {
+  background: #1ed760;
+  color: #222;
+  padding: 6px 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 2px;
+}
+.edit-btn:hover {
+  background: #16b34a;
+  color: #fff;
+}
+
+.delete-btn {
+  background: #222;
+  color: #fff;
+}
+.delete-btn:hover {
+  background: #444;
+}
+
+.postulados-btn {
+  background: #fff;
+  color: #1ed760;
+  border: 1.5px solid #1ed760;
+}
+.postulados-btn:hover {
+  background: #1ed760;
+  color: #fff;
+}
+
+.confirm-btn {
+  background-color: #4CAF50;
+  color: white;
+  padding: 10px 20px;
+}
+.confirm-btn:hover {
+  background-color: #45A049;
+}
+
+.cancel-btn {
+  background-color: #FF4B4B;
+  color: white;
+  padding: 10px 15px;
+}
+.cancel-btn:hover {
+  background-color: #FF0000;
+}
+
+.mini-assign-btn {
+  background-color: #4CAF50;
+  color: white;
+  padding: 5px 14px;
+  font-size: 14px;
+  font-weight: bold;
+  margin-left: 18px;
+}
+.mini-assign-btn:hover {
+  background-color: #388e3c;
+}
+
+/* Cards */
+.games-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  justify-items: center;
+  padding: 20px;
+}
+
+.game-card {
+  background-color: #ffffff;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 300px;
+  padding: 32px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.game-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.game-date-time,
+.game-location,
+.game-arbitro {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+/* Tabla */
+.table-wrapper {
+   width: 105%;  
+  margin-left: -33px;
+  padding: 0 32px;
+  background: none;
+}
+
+.table-matches {
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px #0001;
+  background: #fff;
+}
+
+.table-matches th {
+  background: #111;
+  color: #fff;
+  font-size: 1.1rem;
+  padding: 16px 8px;
+  font-weight: bold;
+}
+
+.table-matches td {
+  padding: 14px 8px;
+  color: #222;
+  font-size: 1.08rem;
+}
+
+.table-matches tr {
+  border-bottom: 1px solid #eaeaea;
+}
+.table-matches tr:hover {
+  background: #f6fff7;
+}
+.table-matches tr:last-child {
+  border-bottom: none;
+}
+
+/* Tabla solo para organizador */
+.table-wrapper-organizador {
+  width: 100%;
+  min-width: 320px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 32px;
+  background: none;
+}
+
+.table-matches-organizador {
+  width: 129%;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px #0001;
+  background: #fff;
+  border-collapse: collapse;
+  margin-left: -150px;
+}
+
+.table-matches-organizador th {
+  background: #111;
+  color: #fff;
+  font-size: 1.1rem;
+  padding: 16px 8px;
+  font-weight: bold;
+}
+
+.table-matches-organizador td {
+  padding: 14px 8px;
+  color: #222;
+  font-size: 1.08rem;
+}
+
+.table-matches-organizador tr {
+  border-bottom: 1px solid #eaeaea;
+}
+.table-matches-organizador tr:hover {
+  background: #f6fff7;
+}
+.table-matches-organizador tr:last-child {
+  border-bottom: none;
+}
+
+/* Footer */
+.footer {
+  background-color: #005DFF;
+  color: white;
+  text-align: center;
+  padding: 20px;
+  margin-top: auto;
+  width: 100%;
+  position: relative;
+  box-sizing: border-box;
+  border-radius: 0 !important;
+}
+
+.footer .contact-info {
+  font-size: 14px;
+}
+
+.footer a {
+  color: white;
+  text-decoration: none;
+  margin: 0 5px;
+}
+.footer a:hover {
+  text-decoration: underline;
+}
+
+/* Modal */
+.modal {
+  display: flex;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 350px;
+  text-align: center;
+  position: relative;
+}
+
+.close-btn {
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  font-size: 25px;
+  cursor: pointer;
+}
+
+/* Contenedor deslizable para tarjetas */
+.cards-container {
+  display: flex;
+  overflow-x: auto; /* Permite el desplazamiento horizontal */
+  gap: 20px;
+  padding: 10px;
+  -webkit-overflow-scrolling: touch; /* Mejora la experiencia en móviles */
+}
+
+.cards-container .card {
+  min-width: 200px; /* Asegura que las tarjetas tengan un ancho mínimo */
+  flex-shrink: 0;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 700px) {
+  .table-wrapper {
+    padding: 0 8px;
+  }
+}
+
+/* Ajustes para móviles */
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column; /* Cambia a diseño vertical */
+    align-items: center;
+    padding: 10px;
+  }
+
+  .logo img {
+    width: 60px; /* Reduce el tamaño del logo */
+    height: auto;
+  }
+
+  .profile-container {
+    flex-direction: column; /* Coloca la información del perfil en columna */
+    gap: 5px;
+  }
+
+  .logout-btn {
+     font-size: 0.7rem; /* Reduce el tamaño del texto */
+    padding: 4px 8px; /* Reduce el espaciado interno */
+    height: 30px; /* Reduce la altura del botón */
+    width: auto; /* Ajusta el ancho automáticamente */
+  }
+
+  .table-wrapper-organizador {
+    padding: 0 1rem;
+    overflow-x: auto; /* Permite desplazamiento horizontal si es necesario */
+  }
+
+  .table-matches-organizador {
+    font-size: 0.8rem; /* Reduce el tamaño del texto */
+    width: 100%; /* Asegura que la tabla ocupe todo el ancho */
+  }
+
+  .table-matches-organizador th, .table-matches-organizador td {
+    padding: 0.5rem; /* Reduce el padding */
+  }
+
+  .add-game-btn {
+    font-size: 0.8rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .games-title {
+    font-size: 1.5rem; /* Reduce el tamaño del título */
+  }
+  .stats-cards-container {
+    display: flex;
+    overflow-x: auto; /* Permite el desplazamiento horizontal */
+    gap: 16px; /* Espaciado entre tarjetas */
+    padding: 10px; /* Espaciado interno */
+    -webkit-overflow-scrolling: touch; /* Mejora la experiencia en móviles */
+  }
+
+  .stats-card {
+    flex-shrink: 0; /* Evita que las tarjetas se reduzcan */
+    min-width: 200px; /* Asegura un ancho mínimo para las tarjetas */
+  }
+}
+
+/* Ajustes para tablets */
+@media (max-width: 1024px) {
+  .table-wrapper-organizador {
+    padding: 0 2rem;
+  }
+
+  .table-matches-organizador th, .table-matches-organizador td {
+    font-size: 1rem;
+    padding: 0.75rem;
+  }
+
+  .add-game-btn {
+    font-size: 0.9rem;
+    padding: 0.75rem 1.5rem;
+  }
+
+  .games-title {
+    font-size: 2rem; /* Ajusta el tamaño del título */
+  }
+}
