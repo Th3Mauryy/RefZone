@@ -65,8 +65,9 @@ cloudinary.config({
     api_secret: 'Kk-2D27Ckh0CIztEfvyDmgWSMSQ', // Tu API secret
 });
 
-// Middleware para manejar CSRF
-// app.use(csrf({ cookie: true }));
+app.get('/api/csrf-token', (req, res) => {
+    res.json({ csrfToken: req.csrfToken() });
+});
 
 // Ruta para obtener el token CSRF (puedes exponerlo al frontend)
 app.get('/api/csrf-token', (req, res) => {
