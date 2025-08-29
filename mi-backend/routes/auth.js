@@ -79,21 +79,13 @@ router.post('/registro', upload.single('imagenPerfil'), async (req, res) => {
 
 // Ruta para iniciar sesión
 router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-
     try {
-        const user = await User.findOne({ email });
-        if (!user || !(await user.comparePassword(password))) {
+        const user = await User.findOne({ email: req.body.email });
+        if (!user || !(await user.comparePassword(req.body.password))) {
             return res.status(400).json({ message: 'Credenciales inválidas' });
         }
-
-        // Generar token JWT
-        const token = jwt.sign({ id: user._id, role: user.role }, 'mi-secreto-jwt-12345', { expiresIn: '1h' });
-
-        // Redirección basada en el rol
-        const redirect = user.role === 'organizador' ? 'organizador' : 'arbitro';
-
-        res.status(200).json({ message: 'Inicio de sesión exitoso', token, redirect });
+        const token = jwt.sign({ id: user._id, role: user.role }, jwtSecret, { expiresIn: '1h' });
+        res.status(200).json({ message: 'Inicio de sesión exitoso', token });
     } catch (error) {
         console.error('Error en el inicio de sesión:', error);
         res.status(500).json({ message: 'Error del servidor' });
