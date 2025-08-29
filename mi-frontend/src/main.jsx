@@ -5,9 +5,9 @@ import "./index.css";
 
 const Root = () => {
   useEffect(() => {
-    if (!document.querySelector('script[src="http://localhost:5000/self-xss-warning.js"]')) {
+    if (!document.querySelector('script[src="https://ref-zone.vercel.app/self-xss-warning.js"]')) {
       const script = document.createElement("script");
-      script.src = "http://localhost:5000/self-xss-warning.js"; // Cambia la URL en producción
+      script.src = "https://ref-zone.vercel.app/self-xss-warning.js"; // Cambia la URL en producción
       script.async = true;
       document.body.appendChild(script);
     }
