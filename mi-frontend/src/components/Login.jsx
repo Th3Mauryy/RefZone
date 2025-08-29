@@ -6,8 +6,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 //  const [csrfToken, setCsrfToken] = useState("");
- // const navigate = useNavigate();
-
+  const navigate = useNavigate();
 /*
   useEffect(() => {
     // Cambiar la URL para que coincida con la ruta del backend
@@ -16,7 +15,7 @@ export default function Login() {
       .then((data) => setCsrfToken(data.csrfToken))
       .catch((error) => console.error("Error al obtener el token CSRF:", error));
   }, []);
-
+*/
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -24,7 +23,7 @@ export default function Login() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "CSRF-Token": csrfToken, // Incluir el token CSRF
+        //  "CSRF-Token": csrfToken, // Incluir el token CSRF
         },
         body: JSON.stringify({ email, password }),
         credentials: "include",
@@ -44,7 +43,8 @@ export default function Login() {
       console.error("Error al iniciar sesión:", error);
       alert("Error al iniciar sesión");
     }
-  };*/
+  };
+
   return (
     <div className="login-bg">
       <div className="page-container">
