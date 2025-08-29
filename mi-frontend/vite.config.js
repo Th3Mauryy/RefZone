@@ -5,11 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'https://refzone.onrender.com',
+      '/api': 'https://refzone.onrender.com', // URL del backend desplegado
     },
-  },
-  test: {
-    environment: "jsdom",
-    include: ["**/*.test.jsx"],
   },
 });
