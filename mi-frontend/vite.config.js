@@ -5,10 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': {
-        target: 'http://localhost:5000', // URL del backend local
-        changeOrigin: true,
-      },
+      '/api': 'https://refzone.onrender.com',
     },
   },
   test: {
