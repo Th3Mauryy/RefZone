@@ -25,8 +25,8 @@ app.use(cookieParser());
 
 // Configuración de CORS (¡IMPORTANTE! Cambia el origin al puerto de tu frontend)
 app.use(cors({
-    origin: 'http://localhost:5173', // URL de tu frontend local
-    credentials: true,               // Permitir envío de cookies
+    origin: 'https://ref-zone.vercel.app',
+    credentials: true,
 }));
 
 // Configuración de sesiones
