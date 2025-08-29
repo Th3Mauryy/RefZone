@@ -21,7 +21,7 @@ router.post('/games', async (req, res) => {
 });
 router.get('/games', verifyToken, async (req, res) => {
     try {
-        const games = await Game.find(); // Ajusta según tu lógica
+        const games = await Game.find().populate('arbitro', 'nombre email _id'); // Incluye los datos del árbitro
         res.status(200).json(games);
     } catch (error) {
         console.error('Error al obtener los partidos:', error);
@@ -54,47 +54,40 @@ router.delete('/games/:id', async (req, res) => {
 });
 
 
-router.post('/games/:id/apply', async (req, res) => {
-    const { id } = req.params;
-  
-    if (!req.session.userId) {
-        return res.status(401).json({ message: 'Usuario no autenticado' });
-    }
-  
-    // Validar que el ID sea un ObjectId válido
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ message: 'ID de partido inválido' });
-    }
-  
-    try {
-        const game = await Game.findById(id);
-        if (!game) {
-            return res.status(404).json({ message: 'Partido no encontrado' });
-        }
-  
-        // Verifica si el usuario ya está postulado
-        if (game.postulados.includes(req.session.userId)) {
-            return res.status(400).json({ message: 'Ya estás postulado para este partido' });
-        }
-  
-        // Verifica si ya se alcanzó el límite de 5 postulados
-        if (game.postulados.length >= 5) {
-            return res.status(400).json({ message: 'El límite de postulantes ha sido alcanzado' });
-        }
-  
-        // Agrega el usuario a la lista de postulados
-        game.postulados.push(req.session.userId);
-        await game.save();
-  
-        res.status(200).json({ message: 'Postulación exitosa' });
-    } catch (error) {
-        console.error('Error al postularse:', error);
-        res.status(500).json({ message: 'Error al postularse' });
-    }
-  });
+router.post('/games/:id/apply', verifyToken, async (req, res) => {
+  const { id } = req.params;
 
+  // Validar que el ID sea un ObjectId válido
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "ID de partido inválido" });
+  }
 
-// Ruta para postularse como árbitro
+  try {
+    const game = await Game.findById(id);
+    if (!game) {
+      return res.status(404).json({ message: "Partido no encontrado" });
+    }
+
+    // Verifica si el usuario ya está postulado
+    if (game.postulados.includes(req.user.id)) {
+      return res.status(400).json({ message: "Ya estás postulado para este partido" });
+    }
+
+    // Verifica si ya se alcanzó el límite de 5 postulados
+    if (game.postulados.length >= 5) {
+      return res.status(400).json({ message: "El límite de postulantes ha sido alcanzado" });
+    }
+
+    // Agrega el usuario a la lista de postulados
+    game.postulados.push(req.user.id);
+    await game.save();
+
+    res.status(200).json({ message: "Postulación exitosa" });
+  } catch (error) {
+    console.error("Error al postularse:", error);
+    res.status(500).json({ message: "Error al postularse" });
+  }
+});
 
 
 // Asignar árbitro al partido y enviar correo

@@ -33,13 +33,13 @@ userSchema.pre('save', async function (next) {
     if (!this.isModified('password')) {
         return next();
     }
-    
+
     // Verificar si la contraseña ya está encriptada
     if (this.password.startsWith('$2b$')) {
         console.log('Contraseña ya está encriptada. No se volverá a encriptar.');
         return next();
     }
-    
+
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
     console.log('Contraseña encriptada:', this.password); // Log para depuración

@@ -1,52 +1,19 @@
-// StatsCards.jsx
-import React from "react";
-
-const cardStyle = {
-  flex: 1,
-  margin: "0 10px",
-  padding: "24px",
-  border: "2px solid #e0e0ff",
-  borderRadius: "8px",
-  background: "#fff",
-  textAlign: "center",
-  minWidth: "200px",
-};
-
-const highlightedStyle = {
-  ...cardStyle,
-  border: "2px solid #bcbcff",
-  boxShadow: "0 0 0 2px #e0e0ff",
-};
-
-const warningStyle = {
-  ...cardStyle,
-  color: "#ff9800",
-};
-
+// /src/components/StatsCards.jsx
 export default function StatsCards({ total, upcoming, needsReferee }) {
   return (
-    <div style={{ display: "flex", gap: "16px", margin: "32px 0" }}>
-      <div style={highlightedStyle}>
-        <div style={{ fontSize: 12, color: "#888" }}>Partidos totales</div>
-        <div style={{ fontSize: 32, fontWeight: 700, margin: "8px 0" }}>{total}</div>
-        <div>
-          <span role="img" aria-label="calendar">📅</span>
-        </div>
+    <section className="stats">
+      <div className="stat">
+        <span className="stat__label">Total</span>
+        <span className="stat__value">{total || 0}</span>
       </div>
-      <div style={cardStyle}>
-        <div style={{ fontSize: 12, color: "#888" }}>Próximos partidos</div>
-        <div style={{ fontSize: 32, fontWeight: 700, margin: "8px 0" }}>{upcoming}</div>
-        <div>
-          <span role="img" aria-label="calendar">📅</span>
-        </div>
+      <div className="stat">
+        <span className="stat__label">Próximos</span>
+        <span className="stat__value">{upcoming || 0}</span>
       </div>
-      <div style={warningStyle}>
-        <div style={{ fontSize: 12, color: "#888" }}>Sin árbitro asignado</div>
-        <div style={{ fontSize: 32, fontWeight: 700, margin: "8px 0" }}>{needsReferee}</div>
-        <div>
-          <span role="img" aria-label="warning">⚠️</span>
-        </div>
+      <div className="stat">
+        <span className="stat__label">Sin árbitro</span>
+        <span className="stat__value">{needsReferee || 0}</span>
       </div>
-    </div>
+    </section>
   );
 }

@@ -66,7 +66,7 @@ router.post('/registro', upload.single('imagenPerfil'), async (req, res) => {
             edad,
             contacto,
             experiencia,
-            imagenPerfil, // Guardar la URL de Cloudinary
+            imagenPerfil,
         });
 
         await newUser.save();
@@ -90,7 +90,10 @@ router.post('/login', async (req, res) => {
         // Generar token JWT
         const token = jwt.sign({ id: user._id, role: user.role }, 'mi-secreto-jwt-12345', { expiresIn: '1h' });
 
-        res.status(200).json({ message: 'Inicio de sesión exitoso', token });
+        // Redirección basada en el rol
+        const redirect = user.role === 'organizador' ? 'organizador' : 'arbitro';
+
+        res.status(200).json({ message: 'Inicio de sesión exitoso', token, redirect });
     } catch (error) {
         console.error('Error en el inicio de sesión:', error);
         res.status(500).json({ message: 'Error del servidor' });
@@ -98,20 +101,20 @@ router.post('/login', async (req, res) => {
 });
 
 router.get('/check-session', verifyToken, async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id);
-        if (!user) {
-            return res.status(404).json({ message: 'Usuario no encontrado' });
-        }
-        res.status(200).json({
-            userId: user._id,
-            nombre: user.nombre,
-            imagenPerfil: user.imagenPerfil,
-        });
-    } catch (error) {
-        console.error('Error al verificar la sesión:', error);
-        res.status(500).json({ message: 'Error del servidor' });
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
     }
+    res.status(200).json({
+      userId: user._id,
+      nombre: user.nombre,
+      imagenPerfil: user.imagenPerfil,
+    });
+  } catch (error) {
+    console.error('Error al verificar la sesión:', error);
+    res.status(500).json({ message: 'Error del servidor' });
+  }
 });
 
 // Ruta para cerrar sesión
@@ -165,7 +168,7 @@ router.post('/recuperar', async (req, res) => {
 
         // Generar un token único para la recuperación
         const token = user.generateAuthToken(); // Puedes usar tu método existente o crear un token único
-        const recoveryLink = `http://refzone.netlify.app/resetear?token=${token}`;
+        const recoveryLink = `http://localhost:5173/resetear?token=${token}`;
 
         // Configurar el transporte de correo
         const transporter = nodemailer.createTransport({
@@ -195,22 +198,28 @@ router.post('/resetear', async (req, res) => {
     const { token, newPassword } = req.body;
 
     try {
+        console.log("Token recibido:", token);
+        console.log("Nueva contraseña recibida:", newPassword);
+
         // Decodificar el token
-        const decoded = jwt.verify(token, 'tu_clave_secreta'); // Cambia 'tu_clave_secreta' por una clave real o variable de entorno
+        const decoded = jwt.verify(token, 'mi-secreto-jwt-12345');
+        console.log("Datos decodificados del token:", decoded);
 
         // Buscar al usuario por ID
         const user = await User.findById(decoded._id);
         if (!user) {
+            console.log("Usuario no encontrado con el ID:", decoded._id);
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
 
         // Actualizar la contraseña del usuario
         user.password = newPassword;
         await user.save();
+        console.log("Contraseña actualizada correctamente para el usuario:", user);
 
         res.status(200).json({ message: 'Contraseña restablecida con éxito' });
     } catch (error) {
-        console.error('Error al restablecer la contraseña:', error);
+        console.error('Error al restablecer la contraseña:', error.message, error.stack);
         res.status(500).json({ message: 'Error al restablecer la contraseña' });
     }
 });

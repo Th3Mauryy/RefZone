@@ -1,39 +1,72 @@
-import React, { useEffect, useState } from "react";
+// File: /src/components/DashboardOrganizador.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import "../styles/dashboardOrganizador.css";
-import StatsCards from "./StatsCards";
 
 const initialGame = { name: "", date: "", time: "", location: "" };
 
 export default function DashboardOrganizador() {
   const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("Agregar Partido");
   const [currentGame, setCurrentGame] = useState(initialGame);
   const [editingId, setEditingId] = useState(null);
+
   const [postuladosModal, setPostuladosModal] = useState({ open: false, postulados: [], gameId: null });
-  const [stats, setStats] = useState({
-    total: 0,
-    upcoming: 0,
-    needsReferee: 0,
-  });
 
+  const [stats, setStats] = useState({ total: 0, upcoming: 0, needsReferee: 0 });
+  const [user, setUser] = useState(null);
 
-  // Cargar partidos al montar
+  // Verificar sesión
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/usuarios/check-session", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (data?.userId) setUser(data);
+        else window.location.href = "/";
+      } catch {
+        window.location.href = "/";
+      }
+    })();
+  }, []);
+
+  // Cargar datos
   useEffect(() => {
     loadGames();
-    fetch("/api/games/stats", { credentials: "include" })
-      .then((res) => res.json())
-      .then((data) => setStats(data))
-      .catch(() => setStats({ total: 0, upcoming: 0, needsReferee: 0 }));
+    (async () => {
+      try {
+        const res = await fetch("/api/games/stats", { credentials: "include" });
+        const data = await res.json();
+        setStats({
+          total: Number(data?.total) || 0,
+          upcoming: Number(data?.upcoming) || 0,
+          needsReferee: Number(data?.needsReferee) || 0,
+        });
+      } catch {
+        setStats({ total: 0, upcoming: 0, needsReferee: 0 });
+      }
+    })();
   }, []);
 
   async function loadGames() {
+    setLoading(true);
+    setError("");
     try {
-      const res = await fetch("/api/games", { credentials: "include" });
+      const res = await fetch("/api/games", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        credentials: "include",
+      });
       const data = await res.json();
-      setGames(data);
-    } catch {
-      alert("Error al cargar los partidos");
+      setGames(Array.isArray(data) ? data : []);
+    } catch (error) { console.error("Error al cargar los partidos:", error); setGames([]); } 
+     finally {
+      setLoading(false);
     }
   }
 
@@ -46,12 +79,12 @@ export default function DashboardOrganizador() {
 
   function openEditModal(game) {
     setCurrentGame({
-      name: game.name,
-      date: game.date ? game.date.split("T")[0] : "",
-      time: game.time || "",
-      location: game.location || "",
+      name: game?.name || "",
+      date: game?.date ? String(game.date).split("T")[0] : "",
+      time: game?.time || "",
+      location: game?.location || "",
     });
-    setEditingId(game._id);
+    setEditingId(game?._id || null);
     setModalTitle("Editar Partido");
     setModalOpen(true);
   }
@@ -68,29 +101,25 @@ export default function DashboardOrganizador() {
         body: JSON.stringify(currentGame),
       });
       const result = await res.json();
-      if (res.ok) {
-        alert(editingId ? "Partido actualizado correctamente" : "Partido agregado correctamente");
-        window.location.reload(); // Recarga la página
-      } else {
-        alert(result.message || "Error al guardar el partido");
-      }
-    } catch {
-      alert("Error al conectar con el servidor");
+      if (!res.ok) throw new Error(result?.message || "Error al guardar el partido");
+      setModalOpen(false);
+      setEditingId(null);
+      setCurrentGame(initialGame);
+      await loadGames();
+    } catch (err) {
+      alert(err.message || "Error al conectar con el servidor");
     }
   }
 
   async function handleDelete(gameId) {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar este partido?")) return;
+    if (!window.confirm("¿Eliminar este partido?")) return;
     try {
       const res = await fetch(`/api/games/${gameId}`, { method: "DELETE", credentials: "include" });
-      if (res.ok) {
-        alert("Partido eliminado correctamente");
-        window.location.reload(); // Recarga la página
-      } else {
-        alert("Error al eliminar el partido");
-      }
-    } catch {
-      alert("Error al conectar con el servidor");
+      if (!res.ok) throw new Error("Error al eliminar el partido");
+      setGames((prev) => prev.filter((g) => g._id !== gameId));
+      setStats((s) => ({ ...s, total: Math.max(0, s.total - 1) }));
+    } catch (err) {
+      alert(err.message || "Error al conectar con el servidor");
     }
   }
 
@@ -98,7 +127,7 @@ export default function DashboardOrganizador() {
     try {
       const res = await fetch(`/api/games/${gameId}/postulados`, { credentials: "include" });
       const data = await res.json();
-      setPostuladosModal({ open: true, postulados: data.postulados, gameId });
+      setPostuladosModal({ open: true, postulados: data?.postulados || [], gameId });
     } catch {
       alert("Error al cargar postulados");
     }
@@ -112,258 +141,251 @@ export default function DashboardOrganizador() {
         credentials: "include",
         body: JSON.stringify({ arbitroId }),
       });
-      if (res.ok) {
-        setPostuladosModal({ open: false, postulados: [], gameId: null });
-        loadGames();
-        alert("Árbitro asignado correctamente");
-      } else {
-        alert("Error al asignar árbitro");
-      }
-    } catch {
-      alert("Error al conectar con el servidor");
+      if (!res.ok) throw new Error("Error al asignar árbitro");
+      setPostuladosModal({ open: false, postulados: [], gameId: null });
+      await loadGames();
+    } catch (err) {
+      alert(err.message || "Error al conectar con el servidor");
     }
   }
 
-  function formatDate(date) {
-    if (!date) return "";
-    // Si la fecha es tipo string "YYYY-MM-DD"
-    if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}/.test(date)) {
-      const [year, month, day] = date.split("T")[0].split("-");
-      return `${day}/${month}/${year}`;
+  function formatDate(input) {
+    if (!input) return "";
+    if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}/.test(input)) {
+      const [y, m, d] = input.split("T")[0].split("-");
+      return `${d}/${m}/${y}`;
     }
-    // Si es Date o timestamp
-    const d = new Date(date);
-    return d.toLocaleDateString("es-MX");
+    const d = new Date(input);
+    return isNaN(d) ? "" : d.toLocaleDateString("es-MX");
   }
 
   function formatTime(time) {
     if (!time) return "";
-    const [hour, minute] = time.split(":");
-    const h = parseInt(hour, 10);
+    const [hStr, m] = String(time).split(":");
+    const h = parseInt(hStr, 10);
     const ampm = h >= 12 ? "PM" : "AM";
     const hour12 = h % 12 || 12;
-    return `${hour12}:${minute} ${ampm}`;
+    return `${hour12}:${m} ${ampm}`;
   }
 
   function logout() {
-    fetch("/api/usuarios/logout", { credentials: "include" }).then(() => {
+    fetch("/api/usuarios/logout", { credentials: "include" }).finally(() => {
       localStorage.removeItem("userEmail");
       localStorage.removeItem("userId");
       window.location.href = "/";
     });
   }
 
+  const hasGames = games?.length > 0;
+
+  const sortedGames = useMemo(() => {
+    return [...games].sort((a, b) => new Date(a.date) - new Date(b.date));
+  }, [games]);
+
   return (
-    <div className="dashboard-bg">
-      <div className="dashboard-container">
-        <header className="header">
-          <div className="logo">
-            <img src="/img/logo.png" alt="Logo" />
-          </div>
-          <button className="logout-btn" onClick={logout}>
-            Cerrar sesión
-          </button>
-          <div className="profile-container">
-            <img className="profile-pic" src="/img/perfil1.png" alt="Perfil" />
-            <div className="profile-info">
-              <span className="username">Admin</span>
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">
+          <img src="/img/logo.png" alt="Logo" className="brand__logo" />
+
+          <div className="profile">
+            <img className="profile__pic" src="/img/perfil1.png" alt="Perfil" />
+            <div className="profile__meta">
+              <span className="profile__name">{user?.name || "Admin"}</span>
+              <button className="btn btn--ghost" onClick={logout}>Cerrar sesión</button>
             </div>
           </div>
-        </header>
-        <div
-          className="main-content"
-          style={{
-            marginTop: games.length <= 1 ? 10 : 10 + (games.length - 1) * 100,
-            padding: "0 32px",
-            width: "100%",
-            boxSizing: "border-box",
-            paddingTop: 0
-          }}
-        >
-          <h1
-            style={{
-              textAlign: "center",
-              margin: "0 0 10px 0",
-              fontWeight: "bold",
-              fontSize: "2.5rem",
-              letterSpacing: "2px",
-              textShadow: "2px 2px 6px #00000044",
-              color: "#222"
-            }}
-          >
-            GESTIÓN DE PARTIDOS
-          </h1>
-          <div className="table-header-actions" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-            <button className="add-game-btn" onClick={openAddModal}>
-              Agregar Partido
-            </button>
-          </div>
-          <div className="table-wrapper-organizador">
-            <table className="table-matches-organizador">
-              <thead>
-                <tr>
-                  <th style={{ padding: 12 }}>Fecha y Hora</th>
-                  <th style={{ padding: 12 }}>Nombre</th>
-                  <th style={{ padding: 12 }}>Ubicación</th>
-                  <th style={{ padding: 12 }}>Árbitro</th>
-                  <th style={{ padding: 12 }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {games.length === 0 && (
+        </div>
+      </header>
+
+      <main className="container">
+        <h1 className="page-title">Gestión de partidos</h1>
+        <button className="btn btn--primary" onClick={openAddModal}>
+            Agregar partido
+          </button>
+        {error && <div className="alert alert--error">{error}</div>}
+        {loading && <div className="skeleton" aria-hidden="true" />}
+
+        {!loading && (
+          <section className="card">
+            <div className="table-responsive">
+              <table className="table">
+                <thead>
                   <tr>
-                    <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "#222" }}>
-                      No hay partidos registrados.
-                    </td>
+                    <th>Fecha y hora</th>
+                    <th>Nombre</th>
+                    <th>Ubicación</th>
+                    <th>Árbitro</th>
+                    <th>Acciones</th>
                   </tr>
-                )}
-                {games.map((game) => (
-                  <tr key={game._id} style={{ borderBottom: "1px solid #eee" }}>
-                    <td style={{ padding: 10, color: "#222" }}>
-                      <span style={{ fontWeight: 600 }}>{formatDate(game.date)}</span>
-                      <br />
-                      <span style={{ color: "#1ed760", fontWeight: 500 }}>{formatTime(game.time)}</span>
-                    </td>
-                    <td style={{ padding: 10, color: "#222" }}>{game.name}</td>
-                    <td style={{ padding: 10, color: "#222" }}>{game.location}</td>
-                    <td style={{ padding: 10 }}>
-                      {game.arbitro
-                        ? <span style={{ color: "#1ed760", fontWeight: 700 }}>{game.arbitro.nombre || game.arbitro.email}</span>
-                        : <span style={{
-                            color: "#fff",
-                            background: "#222",
-                            borderRadius: 6,
-                            padding: "2px 10px",
-                            fontWeight: 600
-                          }}>Sin asignar</span>
-                      }
-                    </td>
-                    <td style={{ padding: 10 }}>
-                      <div className="card-actions">
-                        <button className="edit-btn" onClick={() => openEditModal(game)}>
-                          Editar
-                        </button>
-                        <button className="delete-btn" onClick={() => handleDelete(game._id)}>
-                          Eliminar
-                        </button>
-                        {!game.arbitro && (
-                          <button className="postulados-btn" onClick={() => openPostulados(game._id)}>
-                            Ver postulados
-                          </button>
+                </thead>
+                <tbody>
+                  {!hasGames && (
+                    <tr>
+                      <td colSpan={5} className="table__empty">No hay partidos registrados.</td>
+                    </tr>
+                  )}
+
+                  {sortedGames.map((game) => (
+                    <tr key={game._id}>
+                      <td data-label="Fecha y hora">
+                        <div className="chip-row">
+                          <span className="text-strong">{formatDate(game.date)}</span>
+                          <span className="chip">{formatTime(game.time)}</span>
+                        </div>
+                      </td>
+                      <td data-label="Nombre">{game.name}</td>
+                      <td data-label="Ubicación">{game.location}</td>
+                      <td data-label="Árbitro">
+                        {game.arbitro ? (
+                          <span className="badge badge--success">{game.arbitro.nombre || game.arbitro.email}</span>
+                        ) : (
+                          <span className="badge">Sin asignar</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                      <td data-label="Acciones">
+                        <div className="btn-group">
+                          <button className="btn btn--sm" onClick={() => openEditModal(game)}>Editar</button>
+                          <button className="btn btn--sm btn--danger" onClick={() => handleDelete(game._id)}>Eliminar</button>
+                          {!game.arbitro && (
+                            <button className="btn btn--sm btn--outline" onClick={() => openPostulados(game._id)}>
+                              Ver postulados
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        <StatsCards total={stats.total} upcoming={stats.upcoming} needsReferee={stats.needsReferee} />
+      </main>
+
+      <footer className="site-footer">
+        <div className="container footer__grid">
+          <div>
+            <strong>Contacto</strong>
+            <p>Tel: +52 312 100 1096</p>
+            <p>Email: contacto@refzone.com</p>
           </div>
+          <div>
+            <strong>Redes</strong>
+            <p>
+              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer">Facebook</a> ·
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer"> Instagram</a> ·
+              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer"> Twitter</a>
+            </p>
+          </div>
+        </div>
+      </footer>
 
-          {/* Estadísticas generales */}
-          <StatsCards
-            total={stats.total}
-            upcoming={stats.upcoming}
-            needsReferee={stats.needsReferee}
-          />
-
-          {/* Modal agregar/editar partido */}
-          {modalOpen && (
-            <div className="modal" onClick={() => setModalOpen(false)}>
-              <div className="modal-content" onClick={e => e.stopPropagation()}>
-                <span className="close-btn" onClick={() => setModalOpen(false)}>&times;</span>
-                <h2>{modalTitle}</h2>
-                <form onSubmit={handleSave}>
-                  <input
-                    type="text"
-                    placeholder="Nombre del partido"
-                    value={currentGame.name}
-                    onChange={e => setCurrentGame({ ...currentGame, name: e.target.value })}
-                    required
-                    style={{ width: "100%", marginBottom: 10 }}
-                  />
+      {/* Modal agregar/editar */}
+      {modalOpen && (
+        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" onClick={() => setModalOpen(false)}>
+          <div className="modal__content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal__close" aria-label="Cerrar" onClick={() => setModalOpen(false)}>×</button>
+            <h2 id="modal-title" className="modal__title">{modalTitle}</h2>
+            <form className="form" onSubmit={handleSave}>
+              <label className="form__field">
+                <span>Nombre del partido</span>
+                <input
+                  type="text"
+                  value={currentGame.name}
+                  onChange={(e) => setCurrentGame({ ...currentGame, name: e.target.value })}
+                  required
+                />
+              </label>
+              <div className="form__grid">
+                <label className="form__field">
+                  <span>Fecha</span>
                   <input
                     type="date"
                     value={currentGame.date}
-                    onChange={e => setCurrentGame({ ...currentGame, date: e.target.value })}
+                    onChange={(e) => setCurrentGame({ ...currentGame, date: e.target.value })}
                     required
-                    style={{ width: "100%", marginBottom: 10 }}
                   />
+                </label>
+                <label className="form__field">
+                  <span>Hora</span>
                   <input
                     type="time"
                     value={currentGame.time}
-                    onChange={e => setCurrentGame({ ...currentGame, time: e.target.value })}
+                    onChange={(e) => setCurrentGame({ ...currentGame, time: e.target.value })}
                     required
-                    style={{ width: "100%", marginBottom: 10 }}
                   />
-                  <input
-                    type="text"
-                    placeholder="Ubicación"
-                    value={currentGame.location}
-                    onChange={e => setCurrentGame({ ...currentGame, location: e.target.value })}
-                    required
-                    style={{ width: "100%", marginBottom: 10 }}
-                  />
-                  <button className="confirm-btn" type="submit">
-                    {editingId ? "Guardar cambios" : "Agregar"}
-                  </button>
-                  <button className="cancel-btn" type="button" onClick={() => setModalOpen(false)} style={{ marginLeft: 10 }}>
-                    Cancelar
-                  </button>
-                </form>
+                </label>
               </div>
-            </div>
-          )}
+              <label className="form__field">
+                <span>Ubicación</span>
+                <input
+                  type="text"
+                  value={currentGame.location}
+                  onChange={(e) => setCurrentGame({ ...currentGame, location: e.target.value })}
+                  required
+                />
+              </label>
 
-          {/* Modal de postulados */}
-          {postuladosModal.open && (
-            <div className="modal" onClick={() => setPostuladosModal({ open: false, postulados: [], gameId: null })}>
-              <div className="modal-content" onClick={e => e.stopPropagation()}>
-                <span className="close-btn" onClick={() => setPostuladosModal({ open: false, postulados: [], gameId: null })}>&times;</span>
-                <h2>Postulados</h2>
-                {postuladosModal.postulados.length === 0 ? (
-                  <p>No hay postulados para este partido.</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {postuladosModal.postulados.map(arbitro => (
-                      <div
-                        key={arbitro._id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          marginBottom: 4,
-                          padding: "4px 0"
-                        }}
-                      >
-                        <span>{arbitro.nombre || arbitro.email}</span>
-                        <button
-                          className="mini-assign-btn"
-                          onClick={() => assignArbitro(postuladosModal.gameId, arbitro._id)}
-                        >
-                          Asignar
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="form__actions">
+                <button className="btn btn--primary" type="submit">
+                  {editingId ? "Guardar cambios" : "Agregar"}
+                </button>
+                <button className="btn btn--ghost" type="button" onClick={() => setModalOpen(false)}>
+                  Cancelar
+                </button>
               </div>
-            </div>
-          )}
-
-          {/* Footer */}
-          <footer className="footer">
-            <div className="contact-info">
-              <strong>Contacto:</strong><br />
-              Teléfono: +52 312 100 1096<br />
-              Email: contacto@refzone.com<br />
-              Redes Sociales:
-              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer"> Facebook </a>|
-              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer"> Instagram </a>|
-              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer"> Twitter </a>
-            </div>
-          </footer>
+            </form>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Modal postulados */}
+      {postuladosModal.open && (
+        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="postulados-title" onClick={() => setPostuladosModal({ open: false, postulados: [], gameId: null })}>
+          <div className="modal__content" onClick={(e) => e.stopPropagation()}>
+            
+            <h2 id="postulados-title" className="modal__title">Postulados</h2>
+
+            {postuladosModal.postulados.length === 0 ? (
+              <p className="muted">No hay postulados para este partido.</p>
+            ) : (
+              <ul className="list">
+                {postuladosModal.postulados.map((arbitro) => (
+                  <li key={arbitro._id} className="list__item">
+                    <span>{arbitro.nombre || arbitro.email}</span>
+                    <button className="btn btn--sm btn--primary" onClick={() => assignArbitro(postuladosModal.gameId, arbitro._id)}>
+                      Asignar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+function StatsCards({ total, upcoming, needsReferee }) {
+  return (
+    <section className="stats">
+      <article className="stat">
+        <h3>Total de partidos</h3>
+        <p>{total}</p>
+      </article>
+      <article className="stat">
+        <h3>Próximos</h3>
+        <p>{upcoming}</p>
+      </article>
+      <article className="stat">
+        <h3>Sin árbitro</h3>
+        <p>{needsReferee}</p>
+      </article>
+    </section>
+  );
+}
+

@@ -28,7 +28,7 @@ export default function ResetPassword() {
   if (!token) return <div>Token inválido o faltante.</div>;
 
   return (
-    <div className="login-bg"> {/* Aplica la clase login-bg aquí */}
+    <div className="login-bg">
       <div className="page-container">
         <div className="content-area">
           <div className="login-box">

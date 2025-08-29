@@ -1,574 +1,87 @@
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 0;
-  background-color: #f4f4f4;
+
+:root {
+  --bg: #0b1020;
+  --card: #11162a;
+  --text: #ecf1ff;
+  --muted: #9fb0d3;
+  --primary: #1ed760;
+  --danger: #ff4b4b;
+  --border: #222a44;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
 
-/* Header general */
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 20px;
-  background-color: #f7f7f7;
-  border-bottom: 1px solid #ccc;
-  height: 70px;
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+/* Línea única de refuerzo para evitar parches blancos en cualquier wrapper */
+html, body, #root, .dashboard-bg { background:#0b1020 !important; }
+
+/* Layout */
+.dashboard-bg { min-height: 100dvh; display: grid; grid-template-rows: auto 1fr auto; }
+.container { width: 90%; margin-inline: auto; padding: clamp(16px, 2vw, 24px); }
+.grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+
+
+
+/* Titles */
+.page-title { font-size: clamp(1.25rem, 2vw + .5rem, 2rem); font-weight: 800; letter-spacing: .5px; margin: 12px 0 16px; }
+
+/* Alerts / Skeleton */
+.alert { border: 1px solid var(--border); background: #1a2140; padding: 12px 14px; border-radius: 12px; box-shadow: var(--shadow); }
+.alert--error { border-color: #c0392b; background: #30151a; }
+.skeleton { height: 140px; border-radius: 16px; background: linear-gradient(90deg, #1a2140, #202a52, #1a2140); background-size: 200% 100%; animation: shine 1.2s infinite linear; }
+@keyframes shine { to { background-position: -200% 0; } }
+
+/* Card */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; padding: 16px; }
+.rules h3 { margin-top: 0; }
+
+/* Table */
+.table-responsive { width: 100%; overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; }
+.table thead th { text-align: left; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: #0d1326; border-bottom: 1px solid var(--border); padding: 14px 16px; position: sticky; top: 0; }
+.table td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.table tr:hover td { background: rgba(255,255,255,.02); }
+.table__empty { text-align: center; padding: 24px 16px; color: var(--muted); }
+
+/* Mobile: tabla -> cards */
+@media (max-width: 720px) {
+  .table thead { display: none; }
+  .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
+  .table tr { border-bottom: 1px solid var(--border); padding: 10px 12px; }
+  .table td { border: 0; padding: 8px 0; }
+  .table td::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
 }
 
-.header .logo {
-  flex: 0 0 auto;
-}
+/* Chips & badges */
+.chip-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.text-strong { font-weight: 700; }
+.chip { display: inline-block; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: .85rem; }
 
-/* Logo más pequeño */
-.header .logo img {
-  width: 80px; /* Reduce el tamaño del logo */
-  height: auto; /* Mantiene la proporción */
-}
+/* Buttons */
+.btn { appearance: none; border: 1px solid var(--border); background: #11182f; color: var(--text); border-radius: 12px; padding: 10px 14px; font-weight: 700; cursor: pointer; transition: transform .04s ease, background .2s ease, border-color .2s ease; }
+.btn:hover { background: #182045; }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid #5b87ff; outline-offset: 2px; }
+.btn--primary { background: var(--primary); color: #08210f; border-color: transparent; }
+.btn--danger { background: var(--danger); color: #fff; border-color: transparent; }
+.btn--ghost { background: transparent; border-color: var(--border); color: var(--muted); }
+.btn--sm { padding: 6px 10px; font-size: .9rem; border-radius: 10px; }
+.btn-group { display: inline-flex; gap: 8px; flex-wrap: wrap; }
 
-.header .logout-btn {
-  font-size: 0.8rem; /* Ajusta el tamaño de la fuente */
-  padding: 6px 12px; /* Reduce el padding */
-  background-color: #FF4B4B;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  width: 560px; /* Ajusta el ancho a 300px */
-}
+/* Lists */
+.list { margin: 0; padding: 0 0 0 1rem; display: grid; gap: .25rem; }
+.list li { color: var(--text); }
 
-.header .profile-container {
-  flex: 0 0 auto;   /* quita el flex:1 */
-  /* si prefieres, puedes usar margin-left: auto; en lugar de justify-content en el header */
-  /* margin-left: auto; */
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+/* Footer */
+.site-footer { border-top: 1px solid var(--border); background: #0b1126; color: var(--muted); }
+.footer__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+@media (max-width: 640px) { .footer__grid { grid-template-columns: 1fr; } }
 
-.header .profile-container img {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-}
-
-.profile-container {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.profile-pic {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-}
-
-.profile-info {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-}
-
-.username {
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.logout-btn {
-  background-color: #FF4B4B;
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  cursor: pointer;
-  border-radius: 5px;
-}
-
-.games-list {
-
-  display: grid;
-  grid-template-columns: repeat(3, 1fr); /* 3 columnas */
-  gap: 20px;
-  justify-items: center;
-  padding: 20px;
-}
-
-@media (max-width: 1100px) {
-  .games-list {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 700px) {
-  .games-list {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Estilos para móviles */
-@media (max-width: 768px) {
-  /* Header responsivo */
-  .header {
-    display: grid;
-    grid-template-columns: auto 1fr auto; /* Tres columnas: logo, botón, perfil */
-    align-items: center;
-    justify-items: center; /* Centra horizontalmente los elementos */
-    padding: 10px 20px;
-    height: 80px; /* Altura fija para centrar verticalmente */
-  }
-
-  /* Logo de la empresa (columna 1) */
-  .header .logo {
-    grid-column: 1;
-    justify-self: center; /* Centra el logo horizontalmente */
-    align-self: center; /* Centra el logo verticalmente */
-  }
-  .header .logo img {
-    width: 50px; /* Tamaño reducido del logo */
-    height: auto;
-    margin-top: 20px;
-  }
-
-  /* Botón de cerrar sesión (columna 2) */
-  .header .logout-btn {
-    grid-column: 2;
-    justify-self: center; /* Centra el botón horizontalmente */
-    align-self: center; /* Centra el botón verticalmente */
-    font-size: 0.8rem; /* Ajusta el tamaño del texto */
-    padding: 8px 16px; /* Reduce el padding */
-    background-color: #FF4B4B;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-  }
-
-  /* Perfil (foto + texto) a la derecha (columna 3) */
-  .header .profile-container {
-    grid-column: 3;
-    justify-self: center; /* Centra el contenedor horizontalmente */
-    align-self: center; /* Centra el contenedor verticalmente */
-    display: flex;
-    flex-direction: column; /* Coloca la foto y el texto en columna */
-    align-items: center;
-    gap: 5px;
-  }
-  .header .profile-container img {
-    width: 40px; /* Tamaño reducido de la foto */
-    height: 40px;
-    border-radius: 50%;
-    margin-top: 20px;
-  }
-  .header .username {
-    font-size: 0.8rem; /* Ajusta el tamaño del texto */
-    text-align: center; /* Centra el texto debajo de la foto */
-    white-space: nowrap; /* Evita que el texto se desborde */
-  }
-
-  /* Otros ajustes responsivos */
-  .games-list {
-    grid-template-columns: 1fr; /* Una columna para las tarjetas */
-    gap: 10px;
-  }
-
-  .game-card {
-    width: 100%; /* Ocupa todo el ancho disponible */
-    padding: 1rem;
-  }
-
-  .table-wrapper-arbitro {
-    padding: 0 1rem;
-    overflow-x: auto; /* Hacemos la tabla deslizable */
-    -webkit-overflow-scrolling: touch; /* Mejora la experiencia en móviles */
-  }
-
-  .table-matches-arbitro {
-    min-width: 600px; /* Aseguramos un ancho mínimo para la tabla */
-  }
-
-  .footer {
-    position: fixed; /* Fijamos el footer en la parte inferior */
-    bottom: 0;
-    left: 0;
-    width: 100%; /* Ocupa todo el ancho */
-    background-color: #005DFF;
-    color: white;
-    text-align: center;
-    padding: 20px;
-  }
-}
-
-/* Ajustes para tablets */
-@media (max-width: 1024px) {
-  /* Header responsivo */
-  .header {
-    display: grid;
-    grid-template-columns: auto 1fr auto; /* Tres columnas: logo, botón, perfil */
-    align-items: center;
-    justify-items: center;
-    padding: 10px 20px;
-    height: 80px; /* Altura fija */
-  }
-
-  /* Logo */
-  .header .logo {
-    grid-column: 1;
-    justify-self: center; /* Centra el logo horizontalmente */
-    align-self: center; /* Centra el logo verticalmente */
-  }
-  .header .logo img {
-    width: 50px; /* Tamaño reducido */
-    height: auto;
-  }
-
-  /* Botón de cerrar sesión */
-  .header .logout-btn {
-    grid-column: 2;
-    justify-self: center; /* Centra horizontalmente */
-    align-self: center; /* Centra verticalmente */
-    font-size: 0.7rem; /* Botón más pequeño */
-    padding: 6px 12px; /* Reduce el padding */
-    background-color: #FF4B4B;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-  }
-
-  /* Perfil */
-  .header .profile-container {
-    grid-column: 3;
-    justify-self: center;
-    align-self: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 5px;
-  }
-  .header .profile-container img {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-  }
-  .header .username {
-    font-size: 0.8rem;
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  /* Título "Lista de Partidos" más abajo */
-  .games-title-arbitro {
-    margin-top: 200px; /* Mueve el título más hacia abajo */
-    font-size: 1.8rem; /* Ajusta el tamaño del texto */
-  }
-}
-
-#gamesContainer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: center;
-  width: 100%;
-}
-
-.game-card {
-  position: relative;
-  background-color: #ffffff;
-  border: 1px solid #ccc;
-  border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  width: 300px;
-  padding: 32px 20px 20px 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 20px;
-  text-align: center;
-}
-
-.game-card h3 {
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 10px;
-  color: #333;
-}
-
-.game-card p {
-  margin: 5px 0;
-}
-
-.button-container {
-  margin-top: 10px;
-  display: flex;
-  gap: 10px;
-}
-
-.apply-btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 5px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.cancel-btn {
-  background-color: #FF4B4B !important;
-  color: white !important;
-}
-
-.confirm-btn {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  padding: 10px 20px;
-  cursor: pointer;
-}
-
-.confirm-btn:hover {
-  background-color: #45A049;
-}
-
-.footer {
-  background-color: #005DFF;
-  color: white;
-  text-align: center;
-  padding: 20px;
-  margin-top: auto;
-}
-
-.footer .contact-info {
-  font-size: 14px;
-}
-
-.footer a {
-  color: white;
-  text-decoration: none;
-  margin: 0 5px;
-}
-
-.footer a:hover {
-  text-decoration: underline;
-}
-
-/* Modal styles */
-.modal {
-  display: flex;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  background-color: white;
-  padding: 20px;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 400px;
-  text-align: center;
-  position: relative;
-}
-
-.modal-buttons {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.dashboard-bg {
-  min-height: 100vh;
-  width: 100vw;
-  background: white;
-  background-size: cover;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.dashboard-container {
-  background: rgba(255,255,255,0.97);
-  max-width: 1400px;
-  margin: 40px auto 40px auto;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-  padding: 32px 24px 24px 24px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 90vh;
-}
-
-.games-title {
-  text-align: center;
-  font-size: 2.5rem;
-  font-weight: bold;
-  text-shadow: 2px 2px 6px #ccc;
- 
-}
-
-/* Tabla estilo organizador para árbitro */
-.table-wrapper {
-  width: 100%;
-  min-width: 420px;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 16px;
-  background: none;
-}
-
-.table-matches {
-  width: 100%;
-  border-radius: 12px;
-  box-shadow: 0 4px 24px #0001;
-  background: #fff;
-  border-collapse: collapse;
-  margin-left: 30px;
-}
-
-.table-matches th {
-  background: #111;
-  color: #fff;
-  font-size: 1.1rem;
-  padding: 16px 8px;
-  font-weight: bold;
-}
-
-.table-matches td {
-  padding: 14px 8px;
-  color: #222;
-  font-size: 1.08rem;
-}
-
-.table-matches tr {
-  border-bottom: 1px solid #eaeaea;
-}
-.table-matches tr:hover {
-  background: #f6fff7;
-}
-.table-matches tr:last-child {
-  border-bottom: none;
-}
-
-/* Tabla solo para árbitro */
-.table-wrapper-arbitro {
-  width: 80%;
-  min-width: 320px;
-  max-width: 900px;
-  margin: 0 auto 0 10px;
-  padding: 0 16px;
-  background: none;
-  margin-left: -16px;
-}
-/**/
-.table-matches-arbitro {
-  width: 110%;
-  border-radius: 12px;
-  box-shadow: 0 4px 24px #0001;
-  background: #fff;
-  border-collapse: collapse;
-}
-
-.table-matches-arbitro th {
-  background: #111;
-  color: #fff;
-  font-size: 1.1rem;
-  padding: 16px 8px;
-  font-weight: bold;
-}
-
-.table-matches-arbitro td {
-  padding: 14px 8px;
-  color: #222;
-  font-size: 1.08rem;
-}
-
-.table-matches-arbitro tr {
-  border-bottom: 1px solid #eaeaea;
-}
-.table-matches-arbitro tr:hover {
-  background: #f6fff7;
-}
-.table-matches-arbitro tr:last-child {
-  border-bottom: none;
-}
-
-.card-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
-}
-
-.content-wrapper {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 40px; /* Espacio entre la tabla y el anuncio */
-}
-
-.table-wrapper-arbitro {
-  flex: 3;
-  text-align: center; /* Centra el contenido dentro de la tabla */
-  margin-right: 20px; /* Espacio a la derecha de la tabla */
-}
-
-.games-title-arbitro {
-  text-align: center; /* Centra el título sobre la tabla */
-  font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 20px;
-}
-
-/* Título estático para "Lista de Partidos" */
-.games-title-arbitro {
-  position: fixed; /* Fija el título en una posición específica */
-  top: 100px; /* Ajusta la distancia desde la parte superior */
-  left: 50%; /* Centra horizontalmente */
-  transform: translateX(-50%); /* Ajusta el centrado exacto */
-  z-index: 10; /* Asegura que esté por encima de otros elementos */
-  background-color: white; /* Fondo blanco para evitar que se mezcle con el contenido */
-  padding: 10px 20px; /* Espaciado interno */
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Sombra para destacar */
-  border-radius: 8px; /* Bordes redondeados */
-}
-
-/* Tabla de partidos fija */
-.table-wrapper-arbitro {
-  position: fixed; /* Fija la tabla en una posición específica */
-  top: 180px; /* Ajusta la distancia desde el título */
-  left: 6%; /* Mueve la tabla más hacia la izquierda */
-  width: 70%; /* Ajusta el ancho de la tabla */
-  z-index: 9; /* Asegura que esté por debajo del título */
-  background-color: white; /* Fondo blanco */
-  padding: 10px; /* Espaciado interno */
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Sombra */
-  border-radius: 8px; /* Bordes redondeados */
-  overflow-y: visible; /* Permite que el contenido se muestre completo */
-  max-height: none; /* Elimina la restricción de altura */
-}
-
-/* Tablero de reglas fijo */
-.referee-rules {
-  position: fixed; /* Fija el tablero en una posición específica */
-  top: 180px; /* Alineado con la tabla */
-  right: 5%; /* Mueve el tablero más hacia la derecha */
-  width: 25%; /* Ajusta el ancho del tablero */
-  z-index: 9; /* Asegura que esté por debajo del título */
-  background-color: #f9f9f9; /* Fondo claro */
-  padding: 20px; /* Espaciado interno */
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Sombra */
-  border-radius: 8px; /* Bordes redondeados */
-  overflow-y: auto; /* Habilita el scroll si el contenido es muy largo */
-  max-height: calc(100vh - 250px); /* Limita la altura para evitar que se salga de la pantalla */
-}
+/* Modal */
+.modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(6, 10, 22, .7); }
+.modal__content { width: min(480px, 100%); background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding: clamp(16px, 2.5vw, 22px); position: relative; }
+.modal__title { margin: 0 0 10px; }
+.modal__close { position: absolute; top: 8px; right: 8px; border: 0; background: transparent; color: var(--muted); font-size: 22px; cursor: pointer; border-radius: 8px; padding: 4px 8px; }
+.modal__close:hover { color: var(--text); }
