@@ -9,7 +9,6 @@ const gameRoutes = require('./routes/gameRoutes');
 const crearOrganizadorPorDefecto = require('./config/initOrganizador');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const csrf = require('csurf');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 
@@ -65,14 +64,13 @@ cloudinary.config({
     api_secret: 'Kk-2D27Ckh0CIztEfvyDmgWSMSQ', // Tu API secret
 });
 
-app.get('/api/csrf-token', (req, res) => {
-    res.json({ csrfToken: req.csrfToken() });
-});
+// Comenta o elimina el middleware CSRF
+// app.use(csrf({ cookie: true }));
 
-// Ruta para obtener el token CSRF (puedes exponerlo al frontend)
-app.get('/api/csrf-token', (req, res) => {
-    res.json({ csrfToken: req.csrfToken() });
-});
+// Comenta o elimina la ruta para obtener el token CSRF
+// app.get('/api/csrf-token', (req, res) => {
+//     res.json({ csrfToken: req.csrfToken() });
+// });
 
 // Middleware de seguridad adicional
 app.use((req, res, next) => {
