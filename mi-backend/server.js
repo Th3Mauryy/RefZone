@@ -66,7 +66,7 @@ cloudinary.config({
 });
 
 // Middleware para manejar CSRF
-app.use(csrf({ cookie: true }));
+// app.use(csrf({ cookie: true }));
 
 // Ruta para obtener el token CSRF (puedes exponerlo al frontend)
 app.get('/api/csrf-token', (req, res) => {
@@ -99,6 +99,12 @@ app.use((req, res, next) => {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains'); // Fuerza HTTPS
     res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()'); // Controla permisos
     next();
+});
+
+// Middleware global para manejar errores
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ message: 'Error del servidor', error: err.message });
 });
 
 // Exportar configuración de Cloudinary para usarla en las rutas
