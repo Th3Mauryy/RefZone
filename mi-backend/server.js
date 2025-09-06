@@ -35,7 +35,9 @@ app.use(cookieParser());
 
 // Configuración de CORS (¡IMPORTANTE! Cambia el origin al puerto de tu frontend)
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173', // URL de tu frontend
+    origin: process.env.NODE_ENV === 'production' 
+        ? ['https://ref-zone.vercel.app', 'https://ref-zone-pyblbx36m-th3maurys-projects-fa99351e.vercel.app']
+        : process.env.FRONTEND_URL || 'http://localhost:5173', // URL de tu frontend
     credentials: true,               // Permitir envío de cookies
 }));
 
@@ -47,7 +49,7 @@ app.use(session({
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
-        sameSite: 'Strict',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
     },
 }));
 
