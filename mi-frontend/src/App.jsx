@@ -17,6 +17,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/dashboard-organizador" element={<DashboardOrganizador />} />
         <Route path="/editar-perfil" element={<EditProfile />} />
+        <Route path="/edit-profile" element={<EditProfile />} />
         <Route path="/completar-perfil" element={<CompleteProfile />} />
         <Route path="/recuperar" element={<RecoverPassword />} />
         <Route path="/resetear" element={<ResetPassword />} />

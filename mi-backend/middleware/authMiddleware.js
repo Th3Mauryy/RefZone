@@ -1,6 +1,6 @@
 // filepath: c:\Users\maury\OneDrive\Escritorio\Proyecto_Especialidad\mi-backend\middleware\authMiddleware.js
 const jwt = require('jsonwebtoken');
-const jwtSecret = process.env.JWT_SECRET || 'mi-secreto-jwt-12345'; // Clave secreta desde .env o valor por defecto
+const jwtSecret = process.env.JWT_SECRET || 'super-secret-key-change-in-production'; // Clave secreta desde .env o valor por defecto
 
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];

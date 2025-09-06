@@ -4,17 +4,18 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
-const jwtSecret = process.env.JWT_SECRET || 'mi-secreto-jwt-12345'; // Clave secreta desde .env o valor por defecto
+const jwtSecret = process.env.JWT_SECRET || 'super-secret-key-change-in-production'; // Clave secreta desde .env o valor por defecto
 const { v2: cloudinary } = require('cloudinary');
 const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const verifyToken = require('../middleware/authMiddleware');
+const crypto = require('crypto');
 
 // Configuración de Cloudinary
 cloudinary.config({
-    cloud_name: 'da93e5w1o',
-    api_key: '211741512968278',
-    api_secret: 'Kk-2D27Ckh0CIztEfvyDmgWSMSQ',
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 // Configuración de multer con Cloudinary
@@ -31,67 +32,87 @@ const upload = multer({ storage });
 
 // Ruta para registrarse
 router.post('/registro', upload.single('imagenPerfil'), async (req, res) => {
-    const { email, password, nombre, edad, contacto, experiencia } = req.body;
-
     try {
+        console.log('Datos recibidos:', req.body);
+        console.log('Archivo recibido:', req.file);
+
         // Validaciones
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        const nameRegex = /^[a-zA-Z\s]+$/;
-        const contactRegex = /^\d{10}$/;
-
-        if (!email || !emailRegex.test(email)) {
-            return res.status(400).json({ message: 'Email inválido.' });
+        if (!req.body.email) {
+            console.error('Email no proporcionado');
+            return res.status(400).json({ message: 'Email es requerido' });
         }
 
-        if (!nombre || !nameRegex.test(nombre)) {
-            return res.status(400).json({ message: 'El nombre solo puede contener letras.' });
+        if (!req.body.password) {
+            console.error('Contraseña no proporcionada');
+            return res.status(400).json({ message: 'Contraseña es requerida' });
         }
 
-        if (!edad || isNaN(edad) || edad <= 17 || edad > 50) {
+        if (!req.body.nombre) {
+            console.error('Nombre no proporcionado');
+            return res.status(400).json({ message: 'Nombre es requerido' });
+        }
+
+        if (!req.body.edad || isNaN(req.body.edad) || req.body.edad <= 17 || req.body.edad > 50) {
+            console.error('Edad inválida:', req.body.edad);
             return res.status(400).json({ message: 'La edad debe ser un número entre 18 y 50.' });
         }
 
-        if (!contacto || !contactRegex.test(contacto)) {
+        if (!req.body.contacto || !/^\d{10}$/.test(req.body.contacto)) {
+            console.error('Contacto inválido:', req.body.contacto);
             return res.status(400).json({ message: 'El contacto debe contener exactamente 10 dígitos.' });
         }
 
-        // Obtener la URL de la imagen subida a Cloudinary
+        // Subir imagen a Cloudinary
         const imagenPerfil = req.file ? req.file.path : null;
 
+        // Crear nuevo usuario con el rol "arbitro"
         const newUser = new User({
-            email,
-            password, // No encriptes aquí, deja que el middleware lo haga
-            role: 'arbitro',
-            nombre,
-            edad,
-            contacto,
-            experiencia,
+            email: req.body.email,
+            password: req.body.password, // No encriptes aquí, deja que el middleware lo haga
+            nombre: req.body.nombre,
+            edad: req.body.edad,
+            contacto: req.body.contacto,
+            experiencia: req.body.experiencia,
             imagenPerfil,
+            role: 'arbitro', // Rol por defecto
         });
 
         await newUser.save();
+        console.log('Usuario registrado:', newUser);
         res.status(201).json({ message: 'Registro exitoso' });
     } catch (error) {
         console.error('Error en el registro:', error);
-        res.status(500).json({ message: 'Error del servidor' });
+        res.status(500).json({ message: 'Error interno del servidor' });
     }
 });
 
 // Ruta para iniciar sesión
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
+    console.log('Datos recibidos en /login:', { email, password }); // Log para depuración
 
     try {
-        const user = await User.findOne({ email });
-        if (!user || !(await user.comparePassword(password))) {
+        // Buscar al usuario directamente con el email normalizado
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) {
+            console.error('Usuario no encontrado con el email:', normalizedEmail);
+            return res.status(400).json({ message: 'Credenciales inválidas' });
+        }
+
+        // Verificar la contraseña
+        const isPasswordValid = await user.comparePassword(password);
+        if (!isPasswordValid) {
+            console.error('Contraseña inválida para el usuario:', normalizedEmail);
             return res.status(400).json({ message: 'Credenciales inválidas' });
         }
 
         // Generar token JWT
-        const token = jwt.sign({ id: user._id, role: user.role }, 'mi-secreto-jwt-12345', { expiresIn: '1h' });
+        const token = jwt.sign({ id: user._id, role: user.role }, jwtSecret, { expiresIn: '1h' });
+        console.log('Token generado:', token); // Log para depuración
 
-        // Redirección basada en el rol
-        const redirect = user.role === 'organizador' ? 'organizador' : 'arbitro';
+        // Redirigir según el rol del usuario
+        const redirect = user.role === 'organizador' ? '/dashboard-organizador' : '/dashboard';
 
         res.status(200).json({ message: 'Inicio de sesión exitoso', token, redirect });
     } catch (error) {
@@ -108,7 +129,7 @@ router.get('/check-session', verifyToken, async (req, res) => {
     }
     res.status(200).json({
       userId: user._id,
-      nombre: user.nombre,
+      nombre: user.nombre, // Corregido: enviar 'nombre' en lugar de 'name'
       imagenPerfil: user.imagenPerfil,
     });
   } catch (error) {
@@ -129,29 +150,90 @@ router.post('/logout', (req, res) => {
 });
 
 // Ruta para obtener el perfil del usuario
-router.get('/perfil/:id', async (req, res) => {
+router.get('/perfil/:id', verifyToken, async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
 
-        // Descifrar los campos sensibles
-        const contactoDescifrado = user.decryptContacto();
-        const emailDescifrado = user.decryptEmail();
-        const nombreDescifrado = user.decryptNombre();
-
-        res.status(200).json({
-            ...user.toObject(),
-            contacto: contactoDescifrado,
-            email: emailDescifrado,
-            nombre: nombreDescifrado,
-        });
+        // Devolver datos del usuario sin la contraseña
+        const { password, ...userWithoutPassword } = user.toObject();
+        
+        res.status(200).json(userWithoutPassword);
     } catch (error) {
         console.error('Error al obtener el perfil:', error);
         res.status(500).json({ message: 'Error al obtener el perfil' });
     }
 });
+
+// Ruta para editar perfil
+router.put('/editar-perfil', verifyToken, upload.single('imagenPerfil'), async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { email, contacto, experiencia } = req.body;
+
+        // Validaciones
+        if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+            return res.status(400).json({ message: 'Email inválido' });
+        }
+
+        if (contacto && !/^\d{10}$/.test(contacto)) {
+            return res.status(400).json({ message: 'El contacto debe contener exactamente 10 dígitos.' });
+        }
+
+        if (experiencia && experiencia.length < 10) {
+            return res.status(400).json({ message: 'Describe tu experiencia con al menos 10 caracteres.' });
+        }
+
+        // Buscar el usuario actual
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        // Verificar si el email ya existe en otro usuario
+        if (email && email !== user.email) {
+            const existingUser = await User.findOne({ email: email.trim().toLowerCase() });
+            if (existingUser) {
+                return res.status(400).json({ message: 'El email ya está en uso por otro usuario' });
+            }
+        }
+
+        // Preparar datos para actualizar
+        const updateData = {};
+        if (email) updateData.email = email.trim().toLowerCase();
+        if (contacto) updateData.contacto = contacto;
+        if (experiencia) updateData.experiencia = experiencia;
+
+        // Si hay nueva imagen, actualizar
+        if (req.file) {
+            updateData.imagenPerfil = req.file.path;
+        }
+
+        // Actualizar usuario
+        const updatedUser = await User.findByIdAndUpdate(userId, updateData, { 
+            new: true,
+            runValidators: true 
+        });
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'Error al actualizar el usuario' });
+        }
+
+        // Responder con datos actualizados (sin contraseña)
+        const { password, ...userWithoutPassword } = updatedUser.toObject();
+        
+        res.status(200).json({ 
+            message: 'Perfil actualizado exitosamente',
+            user: userWithoutPassword
+        });
+    } catch (error) {
+        console.error('Error al editar perfil:', error);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
 // Ruta para recuperar contraseña
 router.post('/recuperar', async (req, res) => {
     const { email } = req.body;
@@ -168,20 +250,20 @@ router.post('/recuperar', async (req, res) => {
 
         // Generar un token único para la recuperación
         const token = user.generateAuthToken(); // Puedes usar tu método existente o crear un token único
-        const recoveryLink = `http://localhost:5173/resetear?token=${token}`;
+        const recoveryLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/resetear?token=${token}`;
 
         // Configurar el transporte de correo
         const transporter = nodemailer.createTransport({
-            service: 'gmail', // Cambia esto si usas otro servicio
+            service: 'gmail',
             auth: {
-                user: 'maurymendoza021@gmail.com', // Tu email
-                pass: 'wofm lgcl vkne epgl',      // Tu contraseña (o un token de aplicación)
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
             },
         });
 
         // Enviar correo con el enlace de recuperación
         await transporter.sendMail({
-            from: '"Soporte Refzone" <maurymendoza021@gmail.com>',
+            from: `"Soporte Refzone" <${process.env.EMAIL_USER}>`,
             to: email,
             subject: 'Recuperación de Contraseña',
             text: `Hola ${user.nombre}, sigue este enlace para recuperar tu contraseña: ${recoveryLink}`,
@@ -202,7 +284,7 @@ router.post('/resetear', async (req, res) => {
         console.log("Nueva contraseña recibida:", newPassword);
 
         // Decodificar el token
-        const decoded = jwt.verify(token, 'mi-secreto-jwt-12345');
+        const decoded = jwt.verify(token, jwtSecret);
         console.log("Datos decodificados del token:", decoded);
 
         // Buscar al usuario por ID
@@ -223,4 +305,37 @@ router.post('/resetear', async (req, res) => {
         res.status(500).json({ message: 'Error al restablecer la contraseña' });
     }
 });
+
+// Ruta para obtener estadísticas del usuario
+router.get('/stats', verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const Game = require('../models/Game');
+
+        // Obtener todas las aplicaciones del usuario
+        const userApplications = await Game.find({ 'postulados': userId });
+        const totalApplications = userApplications.length;
+
+        // Obtener juegos aceptados (donde el usuario es el árbitro)
+        const acceptedGames = await Game.find({ 'arbitro': userId });
+        const acceptedCount = acceptedGames.length;
+
+        // Obtener aplicaciones pendientes (postulado pero sin árbitro asignado)
+        const pendingApplications = await Game.find({ 
+            'postulados': userId, 
+            'arbitro': { $exists: false } 
+        });
+        const pendingCount = pendingApplications.length;
+
+        res.status(200).json({
+            totalApplications,
+            acceptedGames: acceptedCount,
+            pendingApplications: pendingCount
+        });
+    } catch (error) {
+        console.error('Error al obtener estadísticas:', error);
+        res.status(500).json({ message: 'Error al obtener estadísticas del usuario' });
+    }
+});
+
 module.exports = router;

@@ -31,4 +31,6 @@ build/
 *.sln
 *.sw?
 Thumbs.db
-node_modules/
+
+# Vercel
+.vercel/

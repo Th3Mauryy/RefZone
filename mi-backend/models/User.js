@@ -2,29 +2,65 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 
-const secretKey = 'mi-clave-secreta';
+// Cargar variables de entorno
+require('dotenv').config();
 
+// Usar variables de entorno en lugar de claves hardcodeadas
+const secretKey = process.env.BCRYPT_SECRET || 'secure-bcrypt-fallback';
+
+/**
+ * Schema de Usuario para MongoDB
+ * Define la estructura de datos para usuarios del sistema (árbitros y organizadores)
+ */
 const userSchema = new mongoose.Schema({
+    /** Email único del usuario, utilizado para autenticación */
     email: { type: String, required: true, unique: true },
+    
+    /** Contraseña hasheada con bcrypt */
     password: { type: String, required: true },
+    
+    /** Nombre completo del usuario */
     nombre: { type: String, required: true },
+    
+    /** Edad del usuario (requerida para validaciones deportivas) */
     edad: { type: Number, required: true },
+    
+    /** Información de contacto (teléfono, WhatsApp, etc.) */
     contacto: { type: String, required: true },
+    
+    /** Nivel de experiencia del árbitro (principiante, intermedio, avanzado) */
     experiencia: { type: String, required: true },
-    imagenPerfil: { type: String, default: null }, // Ruta de la imagen de perfil
-    role: { type: String, default: 'arbitro' }, // Rol del usuario
+    
+    /** URL de la imagen de perfil almacenada en Cloudinary */
+    imagenPerfil: { type: String, default: null },
+    
+    /** Rol del usuario: 'arbitro' o 'organizador' */
+    role: { type: String, default: 'arbitro' },
+    
+    /** Referencia a la cancha asignada (solo para organizadores) */
+    canchaAsignada: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Cancha',
+        default: null 
+    },
 });
 
-// Método para comparar la contraseña en el inicio de sesión
+/**
+ * Compara la contraseña proporcionada con la contraseña hasheada del usuario
+ * @param {string} candidatePassword - La contraseña en texto plano a verificar
+ * @returns {Promise<boolean>} - True si las contraseñas coinciden, false en caso contrario
+ */
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Método para generar el token JWT
+/**
+ * Genera un token JWT para autenticación del usuario
+ * @returns {string} - Token JWT firmado con datos del usuario
+ */
 userSchema.methods.generateAuthToken = function () {
-    const token = jwt.sign({ _id: this._id, role: this.role }, 'mi-secreto-jwt-12345', { expiresIn: '1h' });
+    const token = jwt.sign({ _id: this._id, role: this.role }, process.env.JWT_SECRET || 'secure-jwt-fallback', { expiresIn: '1h' });
     return token;
 };
 
@@ -46,36 +82,23 @@ userSchema.pre('save', async function (next) {
     next();
 });
 
+// Eliminar referencias innecesarias a `key` y `iv` en el middleware pre('save')
 userSchema.pre('save', function (next) {
     if (this.isModified('contacto')) {
-        const cipher = crypto.createCipher('aes-256-cbc', secretKey);
-        this.contacto = cipher.update(this.contacto, 'utf8', 'hex') + cipher.final('hex');
+        // Normalizar el contacto sin cifrado
+        this.contacto = this.contacto.trim();
     }
     if (this.isModified('email')) {
-        const cipher = crypto.createCipher('aes-256-cbc', secretKey);
-        this.email = cipher.update(this.email, 'utf8', 'hex') + cipher.final('hex');
+        // Normalizar el email
+        this.email = this.email.trim().toLowerCase();
     }
     if (this.isModified('nombre')) {
-        const cipher = crypto.createCipher('aes-256-cbc', secretKey);
-        this.nombre = cipher.update(this.nombre, 'utf8', 'hex') + cipher.final('hex');
+        // Normalizar el nombre sin cifrado
+        this.nombre = this.nombre.trim();
     }
+    console.log('Datos normalizados:', { contacto: this.contacto, email: this.email, nombre: this.nombre });
     next();
 });
-
-userSchema.methods.decryptContacto = function () {
-    const decipher = crypto.createDecipher('aes-256-cbc', secretKey);
-    return decipher.update(this.contacto, 'hex', 'utf8') + decipher.final('utf8');
-};
-
-userSchema.methods.decryptEmail = function () {
-    const decipher = crypto.createDecipher('aes-256-cbc', secretKey);
-    return decipher.update(this.email, 'hex', 'utf8') + decipher.final('utf8');
-};
-
-userSchema.methods.decryptNombre = function () {
-    const decipher = crypto.createDecipher('aes-256-cbc', secretKey);
-    return decipher.update(this.nombre, 'hex', 'utf8') + decipher.final('utf8');
-};
 
 const User = mongoose.model('User', userSchema);
 

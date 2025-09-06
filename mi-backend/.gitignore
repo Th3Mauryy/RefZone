@@ -1,1 +1,34 @@
+# Dependencies
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+
+# Environment variables - CRÍTICO
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+
+# Coverage directory
+coverage/
+
+# Database files
+*.db
+*.sqlite
+
+# Build outputs
+dist/
+build/
+
+# Temporary files
+*.tmp

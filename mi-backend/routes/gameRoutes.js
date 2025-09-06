@@ -163,14 +163,14 @@ router.post('/games/:id/assign', async (req, res) => {
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                user: 'maurymendoza021@gmail.com',
-                pass: 'wofm lgcl vkne epgl',
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
             },
         });
 
         // Crear el mensaje de correo
         const mailOptions = {
-            from: '"Soporte Refzone" <maurymendoza021@gmail.com>',
+            from: `"Soporte Refzone" <${process.env.EMAIL_USER}>`,
             to: assignedReferee.email,
             subject: '¡Felicidades! Has sido asignado a un partido',
             text: `¡Felicidades, ${assignedReferee.nombre}! 
