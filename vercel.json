@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "name": "refzone",
+  "builds": [
+    {
+      "src": "mi-frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    },
+    {
+      "src": "mi-backend/server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "mi-backend/server.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "mi-frontend/dist/$1"
+    }
+  ],
+  "env": {
+    "MONGODB_URI": "@mongodb_uri",
+    "JWT_SECRET": "@jwt_secret",
+    "BCRYPT_SECRET": "@bcrypt_secret",
+    "SESSION_SECRET": "@session_secret",
+    "CLOUDINARY_CLOUD_NAME": "@cloudinary_cloud_name",
+    "CLOUDINARY_API_KEY": "@cloudinary_api_key",
+    "CLOUDINARY_API_SECRET": "@cloudinary_api_secret",
+    "NODE_ENV": "production"
+  }
+}
