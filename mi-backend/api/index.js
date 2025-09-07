@@ -60,12 +60,12 @@ const connectToDatabase = async () => {
     }
 };
 
-// Rutas API
-app.use('/api/auth', authRoutes);
-app.use('/api/games', gameRoutes);
+// Rutas API - CORREGIR: Quitar /api del prefix
+app.use('/auth', authRoutes);  // ❌ Era: app.use('/api/auth', authRoutes);
+app.use('/games', gameRoutes); // ❌ Era: app.use('/api/games', gameRoutes);
 
-// Health check
-app.get('/api/health', (req, res) => {
+// Health check - CORREGIR
+app.get('/health', (req, res) => {  // ❌ Era: app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'RefZone API is running' });
 });
 
