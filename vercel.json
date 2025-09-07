@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "refzone",
   "builds": [
     {
       "src": "mi-frontend/package.json",
