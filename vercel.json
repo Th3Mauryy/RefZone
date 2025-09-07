@@ -9,18 +9,18 @@
       }
     },
     {
-      "src": "mi-backend/server.js",
+      "src": "mi-backend/api/index.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/mi-backend/server.js"
+      "dest": "/mi-backend/api/index.js"
     },
     {
       "src": "/(.*)",
-      "dest": "/mi-backend/server.js"
+      "dest": "/mi-frontend/dist/$1"
     }
   ]
 }
