@@ -13,10 +13,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "test": "vitest",
-    "vercel-build": "npm run build"
+    "vercel-build": "vite build",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
   },
   "dependencies": {
     "react": "^19.1.0",

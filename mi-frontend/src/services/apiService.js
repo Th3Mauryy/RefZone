@@ -1,9 +1,15 @@
 import axios from 'axios';
 
 // Configuración de la URL base para la API
-const API_BASE_URL = import.meta.env.PROD 
+const API_BASE_URL = import.meta.env.PROD === true
   ? '/api'  // En producción (Vercel) - Frontend y Backend en mismo dominio
   : 'http://localhost:5000/api';  // En desarrollo local
+
+console.log('🔍 Environment check:', {
+  PROD: import.meta.env.PROD,
+  MODE: import.meta.env.MODE,
+  API_BASE_URL: API_BASE_URL
+});
 
 const api = axios.create({
   baseURL: API_BASE_URL,

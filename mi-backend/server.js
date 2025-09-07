@@ -36,9 +36,11 @@ app.use(cookieParser());
 // Configuración de CORS (¡IMPORTANTE! Cambia el origin al puerto de tu frontend)
 app.use(cors({
     origin: process.env.NODE_ENV === 'production' 
-        ? ['https://ref-zone.vercel.app', 'https://ref-zone-pyblbx36m-th3maurys-projects-fa99351e.vercel.app']
-        : process.env.FRONTEND_URL || 'http://localhost:5173', // URL de tu frontend
-    credentials: true,               // Permitir envío de cookies
+        ? ['https://ref-zone.vercel.app', process.env.FRONTEND_URL]
+        : process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
 
 // Configuración de sesiones
