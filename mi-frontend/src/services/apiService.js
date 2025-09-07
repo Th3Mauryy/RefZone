@@ -1,43 +1,34 @@
-// services/apiService.js - Configuración base para llamadas a la API
+import axios from 'axios';
 
+// Configuración de la URL base para la API
+const API_BASE_URL = import.meta.env.PROD 
+  ? '/api'  // En producción (Vercel) - Frontend y Backend en mismo dominio
+  : 'http://localhost:5000/api';  // En desarrollo local
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Interceptor para manejar respuestas
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('API Error:', error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
+
+// Clase ApiService simplificada con axios
 class ApiService {
-  constructor() {
-    // Configurar la URL base según el entorno
-    this.baseURL = import.meta.env.PROD 
-      ? 'https://ref-zone.vercel.app'  // URL de producción de Vercel
-      : '';  // En desarrollo usa el proxy de Vite
-  }
-
-  // Método auxiliar para manejar respuestas
-  async handleResponse(response) {
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorData}`);
-    }
-    
-    // Verificar si hay contenido para parsear
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return await response.json();
-    }
-    
-    return await response.text();
-  }
-
   // Método GET
-  async get(endpoint, options = {}) {
+  async get(endpoint, config = {}) {
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        },
-        ...options
-      });
-
-      return await this.handleResponse(response);
+      const response = await api.get(endpoint, config);
+      return response.data;
     } catch (error) {
       console.error(`Error en GET ${endpoint}:`, error);
       throw error;
@@ -45,20 +36,10 @@ class ApiService {
   }
 
   // Método POST
-  async post(endpoint, data = {}, options = {}) {
+  async post(endpoint, data = {}, config = {}) {
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        },
-        body: JSON.stringify(data),
-        ...options
-      });
-
-      return await this.handleResponse(response);
+      const response = await api.post(endpoint, data, config);
+      return response.data;
     } catch (error) {
       console.error(`Error en POST ${endpoint}:`, error);
       throw error;
@@ -66,20 +47,10 @@ class ApiService {
   }
 
   // Método PUT
-  async put(endpoint, data = {}, options = {}) {
+  async put(endpoint, data = {}, config = {}) {
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        },
-        body: JSON.stringify(data),
-        ...options
-      });
-
-      return await this.handleResponse(response);
+      const response = await api.put(endpoint, data, config);
+      return response.data;
     } catch (error) {
       console.error(`Error en PUT ${endpoint}:`, error);
       throw error;
@@ -87,36 +58,27 @@ class ApiService {
   }
 
   // Método DELETE
-  async delete(endpoint, options = {}) {
+  async delete(endpoint, config = {}) {
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        },
-        ...options
-      });
-
-      return await this.handleResponse(response);
+      const response = await api.delete(endpoint, config);
+      return response.data;
     } catch (error) {
       console.error(`Error en DELETE ${endpoint}:`, error);
       throw error;
     }
   }
 
-  // Método para subir archivos (FormData)
-  async upload(endpoint, formData, options = {}) {
+  // Método para subir archivos
+  async upload(endpoint, formData, config = {}) {
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData, // No establecer Content-Type para FormData
-        ...options
+      const response = await api.post(endpoint, formData, {
+        ...config,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...config.headers,
+        },
       });
-
-      return await this.handleResponse(response);
+      return response.data;
     } catch (error) {
       console.error(`Error en UPLOAD ${endpoint}:`, error);
       throw error;

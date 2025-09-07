@@ -23,10 +23,5 @@
       "src": "/(.*)",
       "dest": "/mi-frontend/dist/$1"
     }
-  ],
-  "functions": {
-    "mi-backend/server.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
