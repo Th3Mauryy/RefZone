@@ -11,6 +11,27 @@ console.log('🔍 Environment check:', {
   API_BASE_URL: API_BASE_URL
 });
 
+// Función para obtener el token CSRF
+export const getCSRFToken = async () => {
+  try {
+    // CORREGIR: La ruta debe ser /csrf-token, no /api/csrf-token
+    const response = await fetch(`${API_BASE_URL}/csrf-token`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.csrfToken;
+  } catch (error) {
+    console.error('Error al obtener el token CSRF:', error);
+    return null;
+  }
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,

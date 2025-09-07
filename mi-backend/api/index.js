@@ -64,6 +64,14 @@ const connectToDatabase = async () => {
 app.use('/auth', authRoutes);  // ❌ Era: app.use('/api/auth', authRoutes);
 app.use('/games', gameRoutes); // ❌ Era: app.use('/api/games', gameRoutes);
 
+// AGREGAR: Ruta para CSRF token
+app.get('/csrf-token', (req, res) => {
+    res.json({ 
+        csrfToken: 'dummy-token-for-now',
+        message: 'CSRF token generated' 
+    });
+});
+
 // Health check - CORREGIR
 app.get('/health', (req, res) => {  // ❌ Era: app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'RefZone API is running' });
