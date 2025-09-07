@@ -1,20 +1,18 @@
-import axios from 'axios';
-
 // Configuración de la URL base para la API
-const API_BASE_URL = import.meta.env.PROD === true
+const isProduction = window.location.hostname !== 'localhost';
+const API_BASE_URL = isProduction
   ? '/api'  // En producción (Vercel) - Frontend y Backend en mismo dominio
   : 'http://localhost:5000/api';  // En desarrollo local
 
 console.log('🔍 Environment check:', {
-  PROD: import.meta.env.PROD,
-  MODE: import.meta.env.MODE,
+  hostname: window.location.hostname,
+  isProduction: isProduction,
   API_BASE_URL: API_BASE_URL
 });
 
 // Función para obtener el token CSRF
 export const getCSRFToken = async () => {
   try {
-    // CORREGIR: La ruta debe ser /csrf-token, no /api/csrf-token
     const response = await fetch(`${API_BASE_URL}/csrf-token`, {
       method: 'GET',
       credentials: 'include',
@@ -32,85 +30,76 @@ export const getCSRFToken = async () => {
   }
 };
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+// Función para hacer peticiones POST con manejo de errores
+export const apiPost = async (endpoint, data) => {
+  try {
+    console.log(`🚀 Making POST request to: ${API_BASE_URL}${endpoint}`);
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
 
-// Interceptor para manejar respuestas
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('API Error:', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
-);
-
-// Clase ApiService simplificada con axios
-class ApiService {
-  // Método GET
-  async get(endpoint, config = {}) {
-    try {
-      const response = await api.get(endpoint, config);
-      return response.data;
-    } catch (error) {
-      console.error(`Error en GET ${endpoint}:`, error);
-      throw error;
+    console.log(`📡 Response status: ${response.status}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
-  }
 
-  // Método POST
-  async post(endpoint, data = {}, config = {}) {
-    try {
-      const response = await api.post(endpoint, data, config);
-      return response.data;
-    } catch (error) {
-      console.error(`Error en POST ${endpoint}:`, error);
-      throw error;
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error(`❌ Error in POST ${endpoint}:`, error);
+    throw error;
+  }
+};
+
+// Función para hacer peticiones GET
+export const apiGet = async (endpoint) => {
+  try {
+    console.log(`🚀 Making GET request to: ${API_BASE_URL}${endpoint}`);
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    console.log(`📡 Response status: ${response.status}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
-  }
 
-  // Método PUT
-  async put(endpoint, data = {}, config = {}) {
-    try {
-      const response = await api.put(endpoint, data, config);
-      return response.data;
-    } catch (error) {
-      console.error(`Error en PUT ${endpoint}:`, error);
-      throw error;
-    }
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error(`❌ Error in GET ${endpoint}:`, error);
+    throw error;
   }
+};
 
-  // Método DELETE
-  async delete(endpoint, config = {}) {
-    try {
-      const response = await api.delete(endpoint, config);
-      return response.data;
-    } catch (error) {
-      console.error(`Error en DELETE ${endpoint}:`, error);
-      throw error;
-    }
-  }
+// Función específica para login
+export const loginUser = async (userData) => {
+  return apiPost('/auth/login', userData);
+};
 
-  // Método para subir archivos
-  async upload(endpoint, formData, config = {}) {
-    try {
-      const response = await api.post(endpoint, formData, {
-        ...config,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          ...config.headers,
-        },
-      });
-      return response.data;
-    } catch (error) {
-      console.error(`Error en UPLOAD ${endpoint}:`, error);
-      throw error;
-    }
-  }
-}
+// Función específica para registro
+export const registerUser = async (userData) => {
+  return apiPost('/auth/register', userData);
+};
 
-export default new ApiService();
+// Función para obtener perfil de usuario
+export const getUserProfile = async () => {
+  return apiGet('/auth/profile');
+};
+
+// Función para logout
+export const logoutUser = async () => {
+  return apiPost('/auth/logout', {});
+};
