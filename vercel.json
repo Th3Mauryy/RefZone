@@ -20,7 +20,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/mi-frontend/dist/$1"
+      "dest": "/mi-backend/server.js"
     }
   ]
 }

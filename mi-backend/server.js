@@ -245,6 +245,20 @@ app.use((req, res, next) => {
     next();
 });
 
+// NUEVO: Servir archivos estáticos del frontend en producción
+if (process.env.NODE_ENV === 'production') {
+    // Servir archivos estáticos desde mi-frontend/dist
+    app.use(express.static(path.join(__dirname, '../mi-frontend/dist')));
+    
+    // Fallback para React Router - todas las rutas que no sean API
+    app.get('*', (req, res) => {
+        // Solo si la ruta no empieza con /api
+        if (!req.path.startsWith('/api')) {
+            res.sendFile(path.join(__dirname, '../mi-frontend/dist/index.html'));
+        }
+    });
+}
+
 // Exportar configuración de Cloudinary para usarla en las rutas
 module.exports = { cloudinary, CloudinaryStorage };
 
