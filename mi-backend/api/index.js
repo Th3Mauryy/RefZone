@@ -64,17 +64,21 @@ const connectToDatabase = async () => {
 app.use('/auth', authRoutes);  // ❌ Era: app.use('/api/auth', authRoutes);
 app.use('/games', gameRoutes); // ❌ Era: app.use('/api/games', gameRoutes);
 
-// AGREGAR: Ruta para CSRF token
+// AGREGAR: Ruta para CSRF token (FALTABA ESTA LÍNEA)
 app.get('/csrf-token', (req, res) => {
     res.json({ 
-        csrfToken: 'dummy-token-for-now',
-        message: 'CSRF token generated' 
+        csrfToken: 'dummy-csrf-token-' + Date.now(),
+        message: 'CSRF token generated successfully' 
     });
 });
 
-// Health check - CORREGIR
-app.get('/health', (req, res) => {  // ❌ Era: app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', message: 'RefZone API is running' });
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        message: 'RefZone API is running',
+        timestamp: new Date().toISOString()
+    });
 });
 
 // Handler principal para Vercel

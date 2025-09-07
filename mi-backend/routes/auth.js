@@ -338,4 +338,18 @@ router.get('/stats', verifyToken, async (req, res) => {
     }
 });
 
+// AGREGAR: Ruta para register (alias de registro)
+router.post('/register', upload.single('imagenPerfil'), async (req, res) => {
+    try {
+        console.log('Datos recibidos en /register:', req.body);
+        console.log('Archivo recibido:', req.file);
+
+        // Usar la misma lógica que /registro
+        return router.handle({ ...req, url: '/registro', method: 'POST' }, res);
+    } catch (error) {
+        console.error('Error en el registro:', error);
+        res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
 module.exports = router;
