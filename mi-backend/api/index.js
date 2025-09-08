@@ -35,7 +35,7 @@ app.use(session({
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 24 horas
+        maxAge: 24 * 60 * 60 * 1000
     }
 }));
 
@@ -60,7 +60,7 @@ const connectToDatabase = async () => {
     }
 };
 
-// 🔥 AGREGAR ESTA RUTA CSRF (LA QUE FALTA)
+// 🔥 RUTA CSRF - LA QUE FALTABA
 app.get('/csrf-token', (req, res) => {
     res.json({ 
         csrfToken: 'csrf-token-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
@@ -79,7 +79,7 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Rutas API - Sin prefijo /api porque Vercel ya rutea /api/* aquí
+// Rutas API
 app.use('/auth', authRoutes);
 app.use('/games', gameRoutes);
 
