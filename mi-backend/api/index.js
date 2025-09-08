@@ -60,8 +60,9 @@ const connectToDatabase = async () => {
     }
 };
 
-// 🔥 RUTA CSRF - LA QUE FALTABA
+// 🔥 RUTA CSRF - AGREGAR ESTA LÍNEA
 app.get('/csrf-token', (req, res) => {
+    console.log('🔒 CSRF token solicitado');
     res.json({ 
         csrfToken: 'csrf-token-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
         message: 'CSRF token generated successfully',
@@ -71,6 +72,7 @@ app.get('/csrf-token', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
+    console.log('🏥 Health check solicitado');
     res.json({ 
         status: 'OK', 
         message: 'RefZone API is running',
@@ -79,9 +81,28 @@ app.get('/health', (req, res) => {
     });
 });
 
+// 🔥 AGREGAR: Ruta para usuarios/login (compatibilidad)
+app.post('/usuarios/login', (req, res) => {
+    console.log('👤 Login de usuario redirigido a /auth/login');
+    // Redirigir internamente a la ruta correcta
+    req.url = '/auth/login';
+    return authRoutes(req, res);
+});
+
 // Rutas API
 app.use('/auth', authRoutes);
 app.use('/games', gameRoutes);
+
+// Middleware de error 404
+app.use('*', (req, res) => {
+    console.log('❌ Ruta no encontrada:', req.method, req.originalUrl);
+    res.status(404).json({ 
+        error: 'Ruta no encontrada',
+        path: req.originalUrl,
+        method: req.method,
+        timestamp: new Date().toISOString()
+    });
+});
 
 // Handler principal para Vercel
 module.exports = async (req, res) => {
