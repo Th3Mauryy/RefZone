@@ -84,9 +84,9 @@ export const apiGet = async (endpoint) => {
   }
 };
 
-// Función específica para login
+// Función específica para login - CORREGIR RUTA
 export const loginUser = async (userData) => {
-  return apiPost('/auth/login', userData);
+  return apiPost('/auth/login', userData);  // CAMBIAR de /usuarios/login a /auth/login
 };
 
 // Función específica para registro
