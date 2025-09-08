@@ -60,10 +60,10 @@ const connectToDatabase = async () => {
     }
 };
 
-// ⭐ AGREGAR: Ruta para CSRF token (ESTA ES LA QUE FALTA)
+// 🔥 AGREGAR ESTA RUTA CSRF (LA QUE FALTA)
 app.get('/csrf-token', (req, res) => {
     res.json({ 
-        csrfToken: 'dummy-csrf-token-' + Date.now(),
+        csrfToken: 'csrf-token-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
         message: 'CSRF token generated successfully',
         timestamp: new Date().toISOString()
     });
