@@ -338,16 +338,68 @@ router.get('/stats', verifyToken, async (req, res) => {
     }
 });
 
-// AGREGAR: Ruta para register (alias de registro)
+// ⭐ AGREGAR: Ruta para register (alias de registro) - DESPUÉS de la ruta /registro
 router.post('/register', upload.single('imagenPerfil'), async (req, res) => {
     try {
-        console.log('Datos recibidos en /register:', req.body);
-        console.log('Archivo recibido:', req.file);
+        console.log('📝 Datos recibidos en /register:', req.body);
+        console.log('📸 Archivo recibido:', req.file);
 
-        // Usar la misma lógica que /registro
-        return router.handle({ ...req, url: '/registro', method: 'POST' }, res);
+        // Validaciones básicas
+        if (!req.body.email || !req.body.password || !req.body.nombre) {
+            return res.status(400).json({ 
+                message: 'Email, contraseña y nombre son requeridos' 
+            });
+        }
+
+        if (!req.body.edad || isNaN(req.body.edad) || req.body.edad <= 17 || req.body.edad > 50) {
+            return res.status(400).json({ 
+                message: 'La edad debe ser un número entre 18 y 50.' 
+            });
+        }
+
+        if (!req.body.contacto || !/^\d{10}$/.test(req.body.contacto)) {
+            return res.status(400).json({ 
+                message: 'El contacto debe contener exactamente 10 dígitos.' 
+            });
+        }
+
+        // Verificar si el usuario ya existe
+        const existingUser = await User.findOne({ email: req.body.email });
+        if (existingUser) {
+            return res.status(400).json({ message: 'El email ya está registrado' });
+        }
+
+        // Subir imagen a Cloudinary si existe
+        const imagenPerfil = req.file ? req.file.path : null;
+
+        // Crear nuevo usuario
+        const newUser = new User({
+            email: req.body.email,
+            password: req.body.password, // Se hashea automáticamente en el modelo
+            nombre: req.body.nombre,
+            edad: parseInt(req.body.edad),
+            contacto: req.body.contacto,
+            experiencia: req.body.experiencia || '',
+            imagenPerfil,
+            role: 'arbitro',
+        });
+
+        await newUser.save();
+        console.log('✅ Usuario registrado exitosamente:', newUser.email);
+        
+        res.status(201).json({ 
+            message: 'Usuario registrado exitosamente',
+            user: {
+                id: newUser._id,
+                email: newUser.email,
+                nombre: newUser.nombre
+            }
+        });
     } catch (error) {
-        console.error('Error en el registro:', error);
+        console.error('❌ Error en el registro:', error);
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'El email ya está registrado' });
+        }
         res.status(500).json({ message: 'Error interno del servidor' });
     }
 });

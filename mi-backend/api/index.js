@@ -15,7 +15,7 @@ const app = express();
 // Configuración de CORS
 app.use(cors({
     origin: process.env.NODE_ENV === 'production' 
-        ? ['https://ref-zone.vercel.app', process.env.FRONTEND_URL]
+        ? ['https://ref-zone.vercel.app']
         : 'http://localhost:5173',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -60,15 +60,12 @@ const connectToDatabase = async () => {
     }
 };
 
-// Rutas API - CORREGIR: Quitar /api del prefix
-app.use('/auth', authRoutes);  // ❌ Era: app.use('/api/auth', authRoutes);
-app.use('/games', gameRoutes); // ❌ Era: app.use('/api/games', gameRoutes);
-
-// AGREGAR: Ruta para CSRF token (FALTABA ESTA LÍNEA)
+// ⭐ AGREGAR: Ruta para CSRF token (ESTA ES LA QUE FALTA)
 app.get('/csrf-token', (req, res) => {
     res.json({ 
         csrfToken: 'dummy-csrf-token-' + Date.now(),
-        message: 'CSRF token generated successfully' 
+        message: 'CSRF token generated successfully',
+        timestamp: new Date().toISOString()
     });
 });
 
@@ -77,9 +74,14 @@ app.get('/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         message: 'RefZone API is running',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
     });
 });
+
+// Rutas API - Sin prefijo /api porque Vercel ya rutea /api/* aquí
+app.use('/auth', authRoutes);
+app.use('/games', gameRoutes);
 
 // Handler principal para Vercel
 module.exports = async (req, res) => {
