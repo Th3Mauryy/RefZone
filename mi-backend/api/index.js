@@ -87,12 +87,8 @@ app.use('/auth', authRoutes); // También sin el prefijo /api
 app.use('/api/games', gameRoutes);
 app.use('/games', gameRoutes); // También sin el prefijo /api
 
-// 🔥 Manejar la ruta /api/usuarios/login
-app.post('/api/usuarios/login', (req, res) => {
-    console.log('👤 Login redirigido a /auth/login');
-    req.url = '/auth/login';
-    authRoutes(req, res);
-});
+// Mapear /api/usuarios/login a authRoutes
+app.use('/api/usuarios', authRoutes);
 
 // Handler principal para Vercel
 module.exports = async (req, res) => {
