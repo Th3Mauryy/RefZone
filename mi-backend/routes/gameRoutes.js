@@ -5,6 +5,7 @@ const User = require('../models/User');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const verifyToken = require('../middleware/authMiddleware');
+const PDFDocument = require('pdfkit');
 
 // 1. MODIFICAR: Función para crear partidos
 router.post('/', async (req, res) => {
@@ -373,6 +374,104 @@ router.get('/stats', async (req, res) => {
     } catch (err) {
         console.error("Error en /games/stats:", err);
         res.status(500).json({ total: 0, upcoming: 0, needsReferee: 0, error: err.message });
+    }
+});
+
+// Añade esta ruta para generar reportes PDF
+router.get('/reporte-pdf', async (req, res) => {
+    try {
+        // Obtener todos los partidos
+        const games = await Game.find().populate('arbitro', 'nombre email');
+        
+        // Crear un nuevo documento PDF
+        const doc = new PDFDocument();
+        
+        // Configurar la respuesta HTTP
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=reporte-partidos.pdf');
+        
+        // Pipe del PDF a la respuesta HTTP
+        doc.pipe(res);
+        
+        // Agregar contenido al PDF
+        doc.fontSize(25).text('Reporte de Partidos - RefZone', {
+            align: 'center'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+module.exports = router;});    }        res.status(500).json({ message: 'Error al generar el reporte PDF' });        console.error('Error al generar el reporte PDF:', error);    } catch (error) {        doc.end();        // Finalizar el PDF                }            });                doc.moveDown(1);                doc.text(`Postulados: ${game.postulados.length}`);                doc.text(`Árbitro: ${game.arbitro ? game.arbitro.nombre : 'No asignado'}`);                doc.text(`Estado: ${game.estado}`);                doc.text(`Ubicación: ${game.location}`);                doc.text(`Hora: ${game.time}`);                doc.text(`Fecha: ${game.date}`);                doc.fontSize(12);                doc.fontSize(14).text(`Partido ${index + 1}: ${game.name}`);            games.forEach((game, index) => {            // Iterar sobre cada partido y agregar sus detalles        } else {            doc.text('No hay partidos registrados.');        if (games.length === 0) {        // Si no hay partidos                doc.moveDown(2);                });            align: 'right'        doc.text(`Fecha del reporte: ${fecha}`, {        const fecha = new Date().toLocaleDateString('es-ES');        // Mostrar la fecha del reporte                doc.fontSize(12);        doc.moveDown();                });        });
+        
+        doc.moveDown();
+        doc.fontSize(12);
+        
+        // Mostrar la fecha del reporte
+        const fecha = new Date().toLocaleDateString('es-ES');
+        doc.text(`Fecha del reporte: ${fecha}`, {
+            align: 'right'
+        });
+        
+        doc.moveDown(2);
+        
+        // Si no hay partidos
+        if (games.length === 0) {
+            doc.text('No hay partidos registrados.');
+        } else {
+            // Iterar sobre cada partido y agregar sus detalles
+            games.forEach((game, index) => {
+                doc.fontSize(14).text(`Partido ${index + 1}: ${game.name}`);
+                doc.fontSize(12);
+                doc.text(`Fecha: ${game.date}`);
+                doc.text(`Hora: ${game.time}`);
+                doc.text(`Ubicación: ${game.location}`);
+                doc.text(`Estado: ${game.estado}`);
+                doc.text(`Árbitro: ${game.arbitro ? game.arbitro.nombre : 'No asignado'}`);
+                doc.text(`Postulados: ${game.postulados.length}`);
+                doc.moveDown(1);
+            });
+        }
+        
+        // Finalizar el PDF
+        doc.end();
+    } catch (error) {
+        console.error('Error al generar el reporte PDF:', error);
+        res.status(500).json({ message: 'Error al generar el reporte PDF' });
     }
 });
 
