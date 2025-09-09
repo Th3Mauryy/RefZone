@@ -16,19 +16,15 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/mi-backend/api/index.js"
+      "dest": "mi-backend/api/index.js"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/mi-frontend/assets/$1"
-    },
-    {
-      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map))",
-      "dest": "/mi-frontend/$1"
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg))",
+      "dest": "mi-frontend/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/mi-frontend/index.html"
+      "dest": "mi-frontend/index.html"
     }
   ]
 }
