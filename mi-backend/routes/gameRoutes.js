@@ -3,11 +3,11 @@ const router = express.Router();
 const Game = require('../models/Game');
 const User = require('../models/User');
 const mongoose = require('mongoose');
-const nodemailer = require('nodemailer'); // Asegúrate de importar nodemailer
+const nodemailer = require('nodemailer');
 const verifyToken = require('../middleware/authMiddleware');
 
-// Ruta para agregar un partido
-router.post('/games', async (req, res) => {
+// Cambia /games por / en todas las rutas
+router.post('/', async (req, res) => {
     const { name, date, time, location } = req.body;
 
     try {
@@ -19,9 +19,10 @@ router.post('/games', async (req, res) => {
         res.status(500).json({ message: 'Error al agregar el partido' });
     }
 });
-router.get('/games', verifyToken, async (req, res) => {
+
+router.get('/', verifyToken, async (req, res) => {
     try {
-        const games = await Game.find().populate('arbitro', 'nombre email _id'); // Incluye los datos del árbitro
+        const games = await Game.find().populate('arbitro', 'nombre email _id');
         res.status(200).json(games);
     } catch (error) {
         console.error('Error al obtener los partidos:', error);
@@ -29,9 +30,8 @@ router.get('/games', verifyToken, async (req, res) => {
     }
 });
 
-
-// Eliminar un partido por ID
-router.delete('/games/:id', async (req, res) => {
+// Eliminar un partido por ID (cambia /games/:id por /:id)
+router.delete('/:id', async (req, res) => {
     try {
         const gameId = req.params.id;
 
@@ -54,7 +54,7 @@ router.delete('/games/:id', async (req, res) => {
 });
 
 
-router.post('/games/:id/apply', verifyToken, async (req, res) => {
+router.post('/:id/apply', verifyToken, async (req, res) => {
   const { id } = req.params;
 
   // Validar que el ID sea un ObjectId válido
@@ -91,7 +91,7 @@ router.post('/games/:id/apply', verifyToken, async (req, res) => {
 
 
 // Asignar árbitro al partido y enviar correo
-router.post('/games/:id/assign', async (req, res) => {
+router.post('/:id/assign', async (req, res) => {
     try {
         const { arbitroId } = req.body;
 
@@ -204,7 +204,7 @@ Si tienes alguna duda, no dudes en contactarnos.
 
 
 // Obtener postulados de un partido
-router.get('/games/:id/postulados', async (req, res) => {
+router.get('/:id/postulados', async (req, res) => {
     try {
         const game = await Game.findById(req.params.id).populate('postulados', 'nombre email _id');
         if (!game) {
@@ -218,7 +218,7 @@ router.get('/games/:id/postulados', async (req, res) => {
 });
 
 // Ruta para cancelar postulación
-router.post('/games/cancel-postulation', async (req, res) => {
+router.post('/cancel-postulation', async (req, res) => {
     const { gameId, userId } = req.body;
 
     console.log('Datos recibidos del cliente:', { gameId, userId });
@@ -254,7 +254,7 @@ router.post('/games/cancel-postulation', async (req, res) => {
         res.status(500).json({ message: 'Error interno al cancelar la postulación.' });
     }
 });
-router.put('/games/:id', async (req, res) => {
+router.put('/:id', async (req, res) => {
     const { name, date, time, location } = req.body;
     const gameId = req.params.id;
 
@@ -271,7 +271,7 @@ router.put('/games/:id', async (req, res) => {
 });
 
 // Ruta para estadísticas de partidos
-router.get('/games/stats', async (req, res) => {
+router.get('/stats', async (req, res) => {
     try {
         const total = await Game.countDocuments();
         const now = new Date();
@@ -315,3 +315,4 @@ router.get('/stats', async (req, res) => {
 });
 
 module.exports = router;
+app.use('/api/games', gameRoutes);
