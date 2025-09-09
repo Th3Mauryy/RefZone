@@ -6,17 +6,29 @@ const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const verifyToken = require('../middleware/authMiddleware');
 
-// Cambia /games por / en todas las rutas
+// 1. MODIFICAR: Función para crear partidos
 router.post('/', async (req, res) => {
-    const { name, date, time, location } = req.body;
-
     try {
-        const newGame = new Game({ name, date, time, location });
-        await newGame.save();  // Guardar el nuevo partido en MongoDB
-        res.status(201).json(newGame); // Devuelve el partido agregado como respuesta
+        // Extraer datos del body
+        const { name, date, time, location } = req.body;
+        
+        // Crear un nuevo partido con campos inicializados
+        const newGame = new Game({
+            name,
+            date,
+            time, 
+            location,
+            arbitro: null,           // Inicializar como null
+            postulados: [],          // Inicializar como array vacío
+            estado: 'programado'     // Agregar estado inicial
+        });
+        
+        await newGame.save();
+        console.log('Partido creado con éxito:', newGame);
+        res.status(201).json(newGame);
     } catch (error) {
         console.error('Error al agregar el partido:', error);
-        res.status(500).json({ message: 'Error al agregar el partido' });
+        res.status(500).json({ message: 'Error al agregar el partido', error: error.message });
     }
 });
 
@@ -30,7 +42,7 @@ router.get('/', verifyToken, async (req, res) => {
     }
 });
 
-// Eliminar un partido por ID (cambia /games/:id por /:id)
+// 2. MODIFICAR: Función para eliminar partidos
 router.delete('/:id', async (req, res) => {
     try {
         const gameId = req.params.id;
@@ -40,13 +52,79 @@ router.delete('/:id', async (req, res) => {
             return res.status(400).json({ message: 'ID inválido.' });
         }
 
-        const deletedGame = await Game.findByIdAndDelete(gameId);
-
-        if (!deletedGame) {
+        // Primero obtén el partido con sus postulados y árbitro
+        const game = await Game.findById(gameId)
+            .populate('postulados', 'email nombre')
+            .populate('arbitro', 'email nombre');
+        
+        if (!game) {
             return res.status(404).json({ message: 'Partido no encontrado.' });
         }
-
-        res.status(200).json({ message: 'Partido eliminado correctamente.' });
+        
+        // Enviar correos electrónicos a los postulados y al árbitro asignado
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+            }
+        });
+        
+        // Lista para almacenar promesas de envío de correo
+        const emailPromises = [];
+        
+        // Enviar a postulados
+        if (game.postulados && game.postulados.length > 0) {
+            for (const user of game.postulados) {
+                if (user && user.email) {
+                    const mailOptions = {
+                        from: `"Soporte RefZone" <${process.env.EMAIL_USER}>`,
+                        to: user.email,
+                        subject: 'Partido cancelado - RefZone',
+                        html: `
+                            <h2>Partido cancelado</h2>
+                            <p>Hola ${user.nombre},</p>
+                            <p>Te informamos que el partido "${game.name}" programado para el ${game.date} a las ${game.time} ha sido <strong>cancelado</strong>.</p>
+                            <p>Gracias por usar RefZone.</p>
+                        `
+                    };
+                    
+                    emailPromises.push(transporter.sendMail(mailOptions));
+                }
+            }
+        }
+        
+        // Enviar al árbitro asignado si existe
+        if (game.arbitro && game.arbitro.email) {
+            const mailOptions = {
+                from: `"Soporte RefZone" <${process.env.EMAIL_USER}>`,
+                to: game.arbitro.email,
+                subject: 'Partido cancelado - RefZone',
+                html: `
+                    <h2>Partido cancelado</h2>
+                    <p>Hola ${game.arbitro.nombre},</p>
+                    <p>Te informamos que el partido "${game.name}" al que fuiste asignado como árbitro ha sido <strong>cancelado</strong>.</p>
+                    <p>Fecha: ${game.date}</p>
+                    <p>Hora: ${game.time}</p>
+                    <p>Gracias por usar RefZone.</p>
+                `
+            };
+            
+            emailPromises.push(transporter.sendMail(mailOptions));
+        }
+        
+        // Enviar todos los correos en paralelo
+        try {
+            await Promise.all(emailPromises);
+            console.log('Correos de cancelación enviados correctamente');
+        } catch (emailError) {
+            console.error('Error al enviar correos:', emailError);
+        }
+        
+        // Ahora sí, eliminar el partido
+        await Game.findByIdAndDelete(gameId);
+        
+        res.status(200).json({ message: 'Partido eliminado correctamente y notificaciones enviadas.' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error al eliminar el partido.' });
