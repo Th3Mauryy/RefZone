@@ -1,31 +1,15 @@
 const mongoose = require('mongoose');
 
+// Cambiar los campos requeridos o añadir valores por defecto
 const gameSchema = new mongoose.Schema({
-    name: String,
-    date: Date,
-    time: String,
-    location: String,
-    arbitro: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    postulados: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-    canchaId: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Cancha',
-        required: true 
-    },
-    estado: { 
-        type: String, 
-        enum: ['activo', 'finalizado', 'cancelado'], 
-        default: 'activo' 
-    },
-    creadoPor: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User',
-        required: true 
-    },
-    fechaCreacion: {
-        type: Date,
-        default: Date.now
-    }
+  name: { type: String, required: true },
+  date: { type: String, required: true },
+  time: { type: String, required: true },
+  location: { type: String, required: true },
+  arbitro: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  postulados: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: [] }],
+  estado: { type: String, default: 'programado' }
+  // Otros campos que puedas tener...
 });
 
 const Game = mongoose.model('Game', gameSchema);
