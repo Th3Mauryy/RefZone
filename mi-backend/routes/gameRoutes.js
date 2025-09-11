@@ -284,7 +284,7 @@ Si tienes alguna duda, no dudes en contactarnos.
 // Obtener postulados de un partido
 router.get('/:id/postulados', async (req, res) => {
     try {
-        const game = await Game.findById(req.params.id).populate('postulados', 'nombre email _id');
+        const game = await Game.findById(req.params.id).populate('postulados', 'nombre email _id imagenPerfil');
         if (!game) {
             return res.status(404).json({ message: 'Partido no encontrado.' });
         }

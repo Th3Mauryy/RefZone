@@ -636,10 +636,20 @@ export default function DashboardOrganizador() {
                   {postuladosModal.postulados.map((arbitro) => (
                     <div key={arbitro._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
-                          </svg>
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden">
+                          {arbitro.imagenPerfil ? (
+                            <img 
+                              src={arbitro.imagenPerfil} 
+                              alt={arbitro.nombre} 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-blue-100 flex items-center justify-center">
+                              <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
+                              </svg>
+                            </div>
+                          )}
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">{arbitro.nombre || arbitro.email}</p>
