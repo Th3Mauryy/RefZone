@@ -197,7 +197,13 @@ function iniciarAutoEliminacionPartidos() {
 
 // Rutas de API
 app.use('/api/usuarios', authRoutes); // Rutas de autenticación
-app.use('/api', gameRoutes);          // Rutas de partidos
+app.use('/api/games', gameRoutes);    // Rutas de partidos
+app.use('/api/canchas', require('./routes/canchaRoutes')); // Rutas de canchas
+
+// Rutas sin prefijo /api para compatibilidad
+app.use('/usuarios', authRoutes);
+app.use('/games', gameRoutes);
+app.use('/canchas', require('./routes/canchaRoutes'));
 
 // Middleware para servir archivos estáticos (opcional si usas React)
 app.use(express.static(path.join(__dirname, 'public')));

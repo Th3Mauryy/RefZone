@@ -41,14 +41,26 @@ router.get('/', verifyToken, async (req, res) => {
             query.canchaId = req.query.cancha;
         }
         
-        const games = await Game.find(query)
-            .populate('arbitro', 'nombre email _id')
-            .populate('canchaId', 'nombre direccion telefono');
-            
-        res.status(200).json(games);
+        console.log('Buscando partidos con query:', query);
+        
+        // Primero intentamos con populate para canchaId
+        try {
+            const games = await Game.find(query)
+                .populate('arbitro', 'nombre email _id')
+                .populate('canchaId', 'nombre direccion telefono');
+                
+            console.log(`Encontrados ${games.length} partidos`);
+            return res.status(200).json(games);
+        } catch (populateError) {
+            console.error('Error al popular datos:', populateError);
+            // Si falla el populate, intentamos sin él
+            const games = await Game.find(query);
+            console.log(`Encontrados ${games.length} partidos (sin populate)`);
+            return res.status(200).json(games);
+        }
     } catch (error) {
         console.error('Error al obtener los partidos:', error);
-        res.status(500).json({ message: 'Error al obtener los partidos' });
+        res.status(500).json({ message: 'Error al obtener los partidos', error: error.message });
     }
 });
 

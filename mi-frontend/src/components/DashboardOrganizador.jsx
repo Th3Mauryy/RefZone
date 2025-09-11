@@ -165,15 +165,47 @@ export default function DashboardOrganizador() {
     setLoading(true);
     setError("");
     try {
+      console.log("Cargando partidos para el organizador desde /api/games");
       const res = await fetch("/api/games", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: { 
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json'
+        },
         credentials: "include",
       });
+      
+      if (!res.ok) {
+        throw new Error(`Error al cargar partidos: ${res.status} ${await res.text()}`);
+      }
+      
       const data = await res.json();
+      console.log("Partidos obtenidos para el organizador:", data);
       setGames(Array.isArray(data) ? data : []);
     } catch (error) { 
-      console.error("Error al cargar los partidos:", error); 
-      setGames([]);
+      console.error("Error al cargar los partidos:", error);
+      setError(`Error al cargar los partidos: ${error.message}`);
+      
+      // Intentar con la ruta sin /api/ como fallback
+      try {
+        console.log("Intentando fallback: /games");
+        const fallbackRes = await fetch("/games", {
+          headers: { 
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: "include",
+        });
+        
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          console.log("Partidos obtenidos desde fallback:", fallbackData);
+          setGames(Array.isArray(fallbackData) ? fallbackData : []);
+          setError(""); // Limpiar error si el fallback fue exitoso
+        }
+      } catch (fallbackError) {
+        console.error("También falló el fallback:", fallbackError);
+        setGames([]);
+      }
     } finally {
       setLoading(false);
     }

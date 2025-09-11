@@ -50,38 +50,62 @@ export default function Dashboard() {
         return;
       }
       
-      const res = await fetch("/api/usuarios/check-session", {
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: "include",
-      });
-      
-      if (!res.ok) {
-        console.error("Error en check-session:", await res.text());
-        localStorage.removeItem("token");
-        window.location.href = "/";
-        return;
+      // Primero intenta verificar la sesión
+      try {
+        const res = await fetch("/api/usuarios/check-session", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          
+          if (data?.userId) {
+            // Si tiene role arbitro o no tiene role, permitir acceso
+            if (data.role === 'arbitro' || !data.role) {
+              setUser({ 
+                nombre: data.nombre || "Usuario", 
+                userId: data.userId, 
+                imagenPerfil: data.imagenPerfil,
+                email: data.email || "",
+                contacto: data.contacto || "",
+                experiencia: data.experiencia || "",
+                role: data.role || "arbitro" // Default a árbitro si no hay role
+              });
+              return; // Salir si todo está bien
+            } else {
+              console.log("Usuario no es árbitro, redirigiendo...");
+              if (data.role === 'organizador') {
+                window.location.href = "/dashboard-organizador";
+                return;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error en verificación inicial:", error);
+        // Continuar con perfil local si hay error de conexión
       }
       
-      const data = await res.json();
+      // Si llegamos aquí, algo falló en la verificación, pero seguiremos con datos locales
+      const userEmail = localStorage.getItem("userEmail");
+      const userId = localStorage.getItem("userId");
       
-      if (data?.userId && data?.role === 'arbitro') {
-        // Solo si es árbitro permitimos acceso
-        setUser({ 
-          nombre: data.nombre || "Usuario", 
-          userId: data.userId, 
-          imagenPerfil: data.imagenPerfil,
-          email: data.email || "",
-          contacto: data.contacto || "",
-          experiencia: data.experiencia || "",
-          role: data.role
-        });
+      if (userId) {
+        console.log("Usando datos de usuario almacenados localmente");
+        setUser(prev => ({ 
+          ...prev,
+          userId: userId,
+          email: userEmail || prev.email
+        }));
       } else {
-        console.error("Usuario no es árbitro o falta userId:", data);
+        // Si no hay datos ni en servidor ni local, redirigir a login
+        console.error("No se pudo obtener información del usuario");
         window.location.href = "/";
       }
     } catch (error) {
       console.error("Error al cargar datos de usuario:", error);
-      window.location.href = "/";
+      // No redirigimos automáticamente para evitar ciclos de redirección
     }
   }
 
@@ -93,11 +117,55 @@ export default function Dashboard() {
       const url = canchaFiltro === "todas" 
         ? "/api/games" 
         : `/api/games?cancha=${canchaFiltro}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      
+      console.log("Cargando partidos desde:", url);
+      
+      const res = await fetch(url, { 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+        credentials: 'include'
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Error al cargar partidos: ${res.status} ${await res.text()}`);
+      }
+      
       const data = await res.json();
+      console.log("Partidos obtenidos:", data);
+      
       setGames(Array.isArray(data) ? data : []);
-    } catch {
-      setError("Error al cargar los partidos");
+    } catch (error) {
+      console.error("Error en loadGames:", error);
+      setError(`Error al cargar los partidos: ${error.message}`);
+      
+      // Intento alternativo sin /api/ como fallback
+      try {
+        const token = localStorage.getItem("token");
+        const fallbackUrl = canchaFiltro === "todas" 
+          ? "/games" 
+          : `/games?cancha=${canchaFiltro}`;
+        
+        console.log("Intentando fallback:", fallbackUrl);
+        
+        const fallbackRes = await fetch(fallbackUrl, { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json' 
+          },
+          credentials: 'include'
+        });
+        
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          console.log("Partidos obtenidos desde fallback:", fallbackData);
+          setGames(Array.isArray(fallbackData) ? fallbackData : []);
+          setError(""); // Limpiar error si el fallback fue exitoso
+        }
+      } catch (fallbackError) {
+        console.error("También falló el fallback:", fallbackError);
+      }
     } finally {
       setLoading(false);
     }
@@ -176,16 +244,34 @@ export default function Dashboard() {
   }
 
   async function logout() {
+    // Intentamos hacer logout en el servidor, pero no bloqueamos si falla
     try {
-      const res = await fetch("/api/usuarios/logout", { method: "POST", headers: { "Content-Type": "application/json" } });
-      const data = await res.json();
-      alert(data.message);
-      if (res.status === 200) {
-        localStorage.removeItem("userEmail");
-        localStorage.removeItem("userId");
-        window.location.href = "/";
+      const res = await fetch("/api/usuarios/logout", { 
+        method: "POST", 
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        },
+        credentials: "include"
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log("Respuesta del servidor al cerrar sesión:", data.message);
       }
-    } catch { alert("Error al cerrar sesión"); }
+    } catch (error) {
+      console.error("Error al cerrar sesión (no bloqueante):", error);
+    } finally {
+      // Siempre limpiamos localStorage y redirigimos
+      console.log("Cerrando sesión y limpiando datos locales");
+      localStorage.removeItem("userEmail");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("token");
+      localStorage.removeItem("role");
+      localStorage.removeItem("nombre");
+      // Redirigir a la página de login
+      window.location.href = "/";
+    }
   }
 
   return (
