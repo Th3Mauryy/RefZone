@@ -407,4 +407,6 @@ router.get('/stats', async (req, res) => {
     }
 });
 
+// La ruta para generar reportes PDF ha sido movida a reporteRoutes.js
+
 module.exports = router;

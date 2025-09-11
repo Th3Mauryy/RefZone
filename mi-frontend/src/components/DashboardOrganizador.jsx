@@ -376,7 +376,7 @@ export default function DashboardOrganizador() {
   async function descargarReportePDF(mes = null, ano = null) {
     try {
       // Si no se proporcionan mes/año, usar los del modal o fecha actual
-      const mesReporte = mes || reporteModal.mes;
+      const mesNumero = mes || reporteModal.mes;
       const anoReporte = ano || reporteModal.ano;
       const token = localStorage.getItem("token");
       
@@ -385,8 +385,13 @@ export default function DashboardOrganizador() {
         return;
       }
       
+      // Convertir número del mes a nombre del mes en español
+      const mesesNombres = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 
+                          'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      const mesNombre = mesesNombres[mesNumero - 1]; // Restamos 1 porque el arreglo empieza en 0
+      
       // Construir URL del reporte con token
-      const reporteUrl = `/api/games/reporte-pdf?mes=${mesReporte}&ano=${anoReporte}&token=${token}`;
+      const reporteUrl = `/api/reportes/reporte-pdf?mes=${mesNombre}&anio=${anoReporte}&token=${token}`;
       
       // Abrir en nueva pestaña
       window.open(reporteUrl, '_blank');

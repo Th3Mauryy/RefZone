@@ -11,6 +11,7 @@ const session = require('express-session');
 const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const gameRoutes = require('./routes/gameRoutes');
+const reporteRoutes = require('./routes/reporteRoutes');
 const crearOrganizadorPorDefecto = require('./config/initOrganizador');
 const crearCanchaGolwin = require('./config/initCancha');
 const migrarEstadioACancha = require('./config/migrateEstadioToCancha');
@@ -201,11 +202,13 @@ function iniciarAutoEliminacionPartidos() {
 app.use('/api/usuarios', authRoutes); // Rutas de autenticación
 app.use('/api/games', gameRoutes);    // Rutas de partidos
 app.use('/api/canchas', require('./routes/canchaRoutes')); // Rutas de canchas
+app.use('/api/reportes', reporteRoutes); // Rutas de reportes
 
 // Rutas sin prefijo /api para compatibilidad
 app.use('/usuarios', authRoutes);
 app.use('/games', gameRoutes);
 app.use('/canchas', require('./routes/canchaRoutes'));
+app.use('/reportes', reporteRoutes);
 
 // Middleware para servir archivos estáticos (opcional si usas React)
 app.use(express.static(path.join(__dirname, 'public')));

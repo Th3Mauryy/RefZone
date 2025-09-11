@@ -7,23 +7,27 @@ const jwtSecret = process.env.JWT_SECRET || 'super-secret-key-change-in-producti
  */
 const verifyToken = (req, res, next) => {
   try {
+    // Intentar obtener el token de diferentes fuentes
+    let token;
+    
+    // 1. Intentar desde Authorization header (preferido)
     const authHeader = req.headers["authorization"];
-    if (!authHeader) {
-      console.log("Solicitud sin header Authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+    
+    // 2. Intentar desde query params (útil para descargas de archivos)
+    if (!token && req.query.token) {
+      token = req.query.token;
+    }
+    
+    // 3. Si no hay token, devolver error
+    if (!token) {
+      console.log("No se encontró token de autenticación");
       return res.status(401).json({ 
         message: "Token no proporcionado", 
         error: "missing_token", 
-        help: "Asegúrate de enviar un token en el header Authorization" 
-      });
-    }
-
-    const token = authHeader.split(" ")[1];
-    if (!token) {
-      console.log("Header Authorization no tiene formato Bearer token");
-      return res.status(401).json({ 
-        message: "Formato de token inválido", 
-        error: "invalid_format",
-        help: "El header debe tener formato: Bearer [token]" 
+        help: "Asegúrate de enviar un token en el header Authorization o como parámetro token" 
       });
     }
 
