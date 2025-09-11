@@ -50,33 +50,16 @@ router.get('/', verifyToken, async (req, res) => {
         
         console.log(`Encontrados ${games.length} partidos`);
         
-        // Verificar si hay partidos sin cancha asignada
-        // Usar el modelo importado directamente en lugar de mongoose.model
-        const Cancha = require('../models/Cancha');
-        const canchaGolwin = await Cancha.findOne({ nombre: 'Estadio Golwin' });
+        // Ya no necesitamos asignar una cancha predeterminada, ya que todos los partidos
+        // deben ser creados por organizadores con su cancha asignada
         
-        if (canchaGolwin) {
-            console.log('Cancha Golwin encontrada:', canchaGolwin._id);
-            
-            // Actualizar los partidos que no tienen cancha asignada
-            for (const game of games) {
-                if (!game.canchaId) {
-                    console.log(`Asignando cancha Golwin al partido: ${game.name}`);
-                    game.canchaId = canchaGolwin._id;
-                    await game.save();
-                }
-            }
-            
-            // Volver a obtener los partidos actualizados
-            const updatedGames = await Game.find(query)
-                .populate('arbitro', 'nombre email _id')
-                .populate('canchaId', 'nombre direccion telefono');
-                
-            return res.status(200).json(updatedGames);
-        } else {
-            console.log('No se encontró la cancha Golwin');
-            return res.status(200).json(games);
+        // Solo para depuración, mostrar partidos sin cancha
+        const partidosSinCancha = games.filter(game => !game.canchaId);
+        if (partidosSinCancha.length > 0) {
+            console.log(`Advertencia: Hay ${partidosSinCancha.length} partidos sin cancha asignada`);
         }
+        
+        return res.status(200).json(games);
     } catch (error) {
         console.error('Error al obtener los partidos:', error);
         res.status(500).json({ message: 'Error al obtener los partidos', error: error.message });

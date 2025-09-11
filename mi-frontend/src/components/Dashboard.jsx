@@ -179,21 +179,8 @@ export default function Dashboard() {
       const data = await res.json();
       console.log("Partidos obtenidos:", data);
       
-      // Asegurarse de que cada partido tenga una cancha asignada (Golwin por defecto)
-      const partidosConCancha = Array.isArray(data) ? data.map(game => {
-        if (!game.canchaId || !game.canchaId.nombre) {
-          return {
-            ...game,
-            canchaId: {
-              nombre: "Estadio Golwin",
-              direccion: "Av. Deportiva #123, Ciudad"
-            }
-          };
-        }
-        return game;
-      }) : [];
-      
-      setGames(partidosConCancha);
+      // No necesitamos agregar valores predeterminados ya que los organizadores siempre tendrán su cancha asignada
+      setGames(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error en loadGames:", error);
       setError(`Error al cargar los partidos: ${error.message}`);
@@ -219,21 +206,8 @@ export default function Dashboard() {
           const fallbackData = await fallbackRes.json();
           console.log("Partidos obtenidos desde fallback:", fallbackData);
           
-          // Aplicar la misma lógica de asignar cancha por defecto
-          const partidosConCancha = Array.isArray(fallbackData) ? fallbackData.map(game => {
-            if (!game.canchaId || !game.canchaId.nombre) {
-              return {
-                ...game,
-                canchaId: {
-                  nombre: "Estadio Golwin",
-                  direccion: "Av. Deportiva #123, Ciudad"
-                }
-              };
-            }
-            return game;
-          }) : [];
-          
-          setGames(partidosConCancha);
+          // No necesitamos agregar valores predeterminados ya que los organizadores siempre tendrán su cancha asignada
+          setGames(Array.isArray(fallbackData) ? fallbackData : []);
           setError(""); // Limpiar error si el fallback fue exitoso
         }
       } catch (fallbackError) {
@@ -550,7 +524,7 @@ export default function Dashboard() {
                                     <span className="text-sm font-medium text-blue-700">
                                       {game.canchaId && game.canchaId.nombre ? 
                                         game.canchaId.nombre : 
-                                        "Estadio Golwin"}
+                                        "No disponible"}
                                     </span>
                                   </div>
                                 </td>

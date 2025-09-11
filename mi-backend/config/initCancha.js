@@ -4,16 +4,16 @@ const User = require('../models/User');
 async function crearCanchaGolwin() {
     try {
         // Verificar si ya existe la cancha Golwin
-        const canchaExistente = await Cancha.findOne({ nombre: 'Estadio Golwin' });
+        const canchaExistente = await Cancha.findOne({ nombre: 'Cancha Golwin' });
         
         if (!canchaExistente) {
             // Crear cancha Golwin
             const nuevaCancha = new Cancha({
-                nombre: 'Estadio Golwin',
+                nombre: 'Cancha Golwin',
                 direccion: 'Av. Deportiva #123, Ciudad',
                 telefono: '+52 123 456 7890',
-                email: 'info@estadiogolwin.com',
-                descripcion: 'Estadio principal para partidos de fútbol 7',
+                email: 'info@canchagolwin.com',
+                descripcion: 'Cancha principal para partidos de fútbol 7',
                 activa: true
             });
             
@@ -29,7 +29,7 @@ async function crearCanchaGolwin() {
             if (organizador) {
                 organizador.canchaAsignada = nuevaCancha._id;
                 await organizador.save({ validateBeforeSave: false }); // Evitar validación de campos requeridos
-                console.log('✅ Organizador asignado a Estadio Golwin');
+                console.log('✅ Organizador asignado a Cancha Golwin');
             } else {
                 console.log('⚠️ No se encontró el organizador para asignar');
             }
@@ -46,7 +46,7 @@ async function crearCanchaGolwin() {
             if (organizador && !organizador.canchaAsignada) {
                 organizador.canchaAsignada = canchaExistente._id;
                 await organizador.save({ validateBeforeSave: false }); // Evitar validación de campos requeridos
-                console.log('✅ Organizador asignado a Estadio Golwin existente');
+                console.log('✅ Organizador asignado a Cancha Golwin existente');
             }
         }
         
