@@ -203,6 +203,16 @@ export default function DashboardOrganizador() {
     try {
       const method = editingId ? "PUT" : "POST";
       const url = editingId ? `/api/games/${editingId}` : "/api/games";
+      
+      // Crear una copia del objeto currentGame para modificarlo
+      const gameToSave = { ...currentGame };
+      
+      // Agregar la cancha asignada al usuario si estamos creando un nuevo partido
+      if (!editingId && user?.canchaAsignada?._id) {
+        gameToSave.canchaId = user.canchaAsignada._id;
+        console.log("Añadiendo cancha al partido:", user.canchaAsignada.nombre);
+      }
+      
       const res = await fetch(url, {
         method,
         headers: { 
@@ -210,7 +220,7 @@ export default function DashboardOrganizador() {
           "Authorization": `Bearer ${localStorage.getItem("token")}`
         },
         credentials: "include",
-        body: JSON.stringify(currentGame),
+        body: JSON.stringify(gameToSave),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result?.message || "Error al guardar el partido");

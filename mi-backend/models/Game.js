@@ -8,7 +8,8 @@ const gameSchema = new mongoose.Schema({
   location: { type: String, required: true },
   arbitro: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   postulados: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: [] }],
-  estado: { type: String, default: 'programado' }
+  estado: { type: String, default: 'programado' },
+  canchaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cancha', default: null }
   // Otros campos que puedas tener...
 });
 

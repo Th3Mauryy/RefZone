@@ -10,7 +10,7 @@ const verifyToken = require('../middleware/authMiddleware');
 router.post('/', async (req, res) => {
     try {
         // Extraer datos del body
-        const { name, date, time, location } = req.body;
+        const { name, date, time, location, canchaId } = req.body;
         
         // Crear un nuevo partido con campos inicializados
         const newGame = new Game({
@@ -18,6 +18,7 @@ router.post('/', async (req, res) => {
             date,
             time, 
             location,
+            canchaId,               // Agregar la cancha asignada
             arbitro: null,           // Inicializar como null
             postulados: [],          // Inicializar como array vacío
             estado: 'programado'     // Agregar estado inicial
@@ -34,7 +35,16 @@ router.post('/', async (req, res) => {
 
 router.get('/', verifyToken, async (req, res) => {
     try {
-        const games = await Game.find().populate('arbitro', 'nombre email _id');
+        // Filtrar por cancha si se proporciona en la consulta
+        let query = {};
+        if (req.query.cancha && req.query.cancha !== 'todas') {
+            query.canchaId = req.query.cancha;
+        }
+        
+        const games = await Game.find(query)
+            .populate('arbitro', 'nombre email _id')
+            .populate('canchaId', 'nombre direccion telefono');
+            
         res.status(200).json(games);
     } catch (error) {
         console.error('Error al obtener los partidos:', error);
@@ -333,11 +343,18 @@ router.post('/cancel-postulation', async (req, res) => {
     }
 });
 router.put('/:id', async (req, res) => {
-    const { name, date, time, location } = req.body;
+    const { name, date, time, location, canchaId } = req.body;
     const gameId = req.params.id;
 
     try {
-        const updatedGame = await Game.findByIdAndUpdate(gameId, { name, date, time, location }, { new: true });
+        const updateData = { name, date, time, location };
+        
+        // Agregar canchaId al objeto de actualización si está presente
+        if (canchaId) {
+            updateData.canchaId = canchaId;
+        }
+        
+        const updatedGame = await Game.findByIdAndUpdate(gameId, updateData, { new: true });
         if (!updatedGame) {
             return res.status(404).json({ message: 'Partido no encontrado.' });
         }
