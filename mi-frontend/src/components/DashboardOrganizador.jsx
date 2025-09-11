@@ -395,24 +395,55 @@ export default function DashboardOrganizador() {
       
       console.log(`Generando reporte para ${mesNombre} de ${anoReporte}`);
       
-      // Construir URL para obtener los datos del reporte
+      // Construir URL base según el entorno
       const baseUrl = window.location.hostname === 'localhost' ? '' : 'https://ref-zone.vercel.app';
-      const reporteUrl = `${baseUrl}/api/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`;
       
-      // Obtener los datos del reporte
-      const response = await fetch(reporteUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
-      });
+      // Intentar obtener los datos del reporte, primero con /api/ y luego sin él si falla
+      let reporteData;
+      let response;
       
-      if (!response.ok) {
-        throw new Error(`Error al obtener datos del reporte: ${response.status}`);
+      try {
+        // Primer intento con /api/
+        const reporteUrl = `${baseUrl}/api/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`;
+        console.log('Intentando con URL:', reporteUrl);
+        
+        response = await fetch(reporteUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Error al obtener datos del reporte: ${response.status}`);
+        }
+        
+        reporteData = await response.json();
+      // eslint-disable-next-line no-unused-vars
+      } catch (error) {
+        console.log('Primer intento fallido, probando ruta alternativa...');
+        
+        // Segundo intento sin /api/
+        const reporteUrlFallback = `${baseUrl}/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`;
+        console.log('Intentando con URL fallback:', reporteUrlFallback);
+        
+        response = await fetch(reporteUrlFallback, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Error al obtener datos del reporte (ambos intentos fallidos): ${response.status}`);
+        }
+        
+        reporteData = await response.json();
       }
       
-      const reporteData = await response.json();
+      console.log('Datos del reporte obtenidos:', reporteData);
       console.log('Datos del reporte obtenidos:', reporteData);
       
       // Cargar la biblioteca jsPDF dinámicamente
