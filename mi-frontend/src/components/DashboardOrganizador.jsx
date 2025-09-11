@@ -390,8 +390,12 @@ export default function DashboardOrganizador() {
                           'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
       const mesNombre = mesesNombres[mesNumero - 1]; // Restamos 1 porque el arreglo empieza en 0
       
+      console.log(`Generando reporte para ${mesNombre} de ${anoReporte}`);
+      
       // Construir URL del reporte con token
-      const reporteUrl = `/api/reportes/reporte-pdf?mes=${mesNombre}&anio=${anoReporte}&token=${token}`;
+      // Intentar con URL absoluta para Vercel
+      const baseUrl = window.location.hostname === 'localhost' ? '' : 'https://ref-zone.vercel.app';
+      const reporteUrl = `${baseUrl}/api/reportes/reporte-pdf?mes=${mesNombre}&anio=${anoReporte}&token=${token}`;
       
       // Abrir en nueva pestaña
       window.open(reporteUrl, '_blank');

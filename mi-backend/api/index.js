@@ -8,6 +8,7 @@ const session = require('express-session');
 // Importar rutas
 const authRoutes = require('../routes/auth');
 const gameRoutes = require('../routes/gameRoutes');
+const reporteRoutes = require('../routes/reporteRoutes');
 
 // Crear app Express
 const app = express();
@@ -93,6 +94,10 @@ app.use('/api/usuarios', authRoutes);
 // AÑADIR: Ruta para canchas
 app.use('/api/canchas', require('../routes/canchaRoutes'));
 app.use('/canchas', require('../routes/canchaRoutes'));
+
+// AÑADIR: Ruta para reportes PDF
+app.use('/api/reportes', require('../routes/reporteRoutes'));
+app.use('/reportes', require('../routes/reporteRoutes'));
 
 // Handler principal para Vercel
 module.exports = async (req, res) => {
