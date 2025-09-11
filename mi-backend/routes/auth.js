@@ -107,8 +107,12 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Credenciales inválidas' });
         }
 
-        // Generar token JWT
-        const token = jwt.sign({ id: user._id, role: user.role }, jwtSecret, { expiresIn: '1h' });
+        // Generar token JWT con mayor tiempo de expiración (7 días)
+        const token = jwt.sign(
+            { id: user._id, role: user.role, email: user.email }, 
+            jwtSecret, 
+            { expiresIn: '7d' }
+        );
         console.log('Token generado:', token); // Log para depuración
 
         // Redirigir según el rol del usuario
@@ -121,28 +125,64 @@ router.post('/login', async (req, res) => {
     }
 });
 
+/**
+ * Verifica el estado de la sesión del usuario actual
+ * Requiere token de autenticación
+ * Devuelve información básica del usuario
+ */
 router.get('/check-session', verifyToken, async (req, res) => {
   try {
-    // Usar .lean() para obtener un objeto JavaScript puro y evitar problemas con circular references
+    // Validar que existe un ID de usuario en el token
+    if (!req.user || !req.user.id) {
+      console.error('Token sin ID de usuario:', req.user);
+      return res.status(401).json({ 
+        message: 'Token inválido - falta ID de usuario',
+        success: false
+      });
+    }
+    
+    console.log('Verificando sesión para usuario:', req.user.id);
+    
+    // Usar .lean() para obtener un objeto JavaScript puro y evitar problemas
     const user = await User.findById(req.user.id)
-      .populate('canchaAsignada')
+      .select('_id nombre email role imagenPerfil edad contacto experiencia')
       .lean()
       .exec();
     
     if (!user) {
-      return res.status(404).json({ message: 'Usuario no encontrado' });
+      console.error('Usuario no encontrado en la base de datos:', req.user.id);
+      return res.status(404).json({ 
+        message: 'Usuario no encontrado en la base de datos',
+        success: false 
+      });
     }
     
-    // Enviar solo los datos necesarios
+    // Si llegamos aquí, la sesión es válida
+    console.log('Sesión válida para:', user.nombre || user.email);
+    
+    // Guardar en localStorage los datos básicos del usuario
+    // Esto se hace enviando instrucciones al cliente
     res.status(200).json({
+      success: true,
       userId: user._id,
       nombre: user.nombre,
+      email: user.email,
       imagenPerfil: user.imagenPerfil,
       role: user.role,
+      edad: user.edad,
+      contacto: user.contacto,
+      experiencia: user.experiencia,
+      // Incluir instrucciones para el cliente
+      storeLocally: true,
+      storeFields: ['userId', 'nombre', 'email', 'role']
     });
   } catch (error) {
     console.error('Error al verificar la sesión:', error);
-    res.status(500).json({ message: 'Error del servidor' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error.message,
+      success: false
+    });
   }
 });
 

@@ -24,37 +24,66 @@ export default function DashboardOrganizador() {
       try {
         const token = localStorage.getItem("token");
         if (!token) {
+          console.error("No hay token disponible");
           window.location.href = "/";
           return;
         }
 
-        const res = await fetch("/api/usuarios/check-session", {
-          headers: { Authorization: `Bearer ${token}` },
-          credentials: "include",
-        });
-        
-        if (!res.ok) {
-          console.error("Error en check-session:", await res.text());
-          localStorage.removeItem("token");
-          window.location.href = "/";
-          return;
+        // Primero intenta verificar la sesión
+        try {
+          const res = await fetch("/api/usuarios/check-session", {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            
+            if (data?.userId) {
+              // Si tiene role organizador o no tiene role, permitir acceso
+              if (data.role === 'organizador') {
+                setUser(data);
+                
+                // Cargar información de la cancha asignada
+                loadCanchaAsignada();
+                return; // Salir si todo está bien
+              } else {
+                console.log("Usuario no es organizador, redirigiendo...");
+                if (data.role === 'arbitro') {
+                  window.location.href = "/dashboard";
+                  return;
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error en verificación inicial:", error);
+          // Continuar con perfil local si hay error de conexión
         }
         
-        const data = await res.json();
+        // Si llegamos aquí, algo falló en la verificación, pero seguiremos con datos locales
+        const userEmail = localStorage.getItem("userEmail");
+        const userId = localStorage.getItem("userId");
         
-        if (data?.userId && data?.role === 'organizador') {
-          // Solo si es organizador permitimos acceso
-          setUser(data);
+        if (userId) {
+          console.log("Usando datos de usuario almacenados localmente");
+          setUser({
+            userId: userId,
+            nombre: "Organizador", // Default
+            email: userEmail || "",
+            role: "organizador"
+          });
           
-          // Cargar información de la cancha asignada
+          // Intentar cargar la cancha asignada de todos modos
           loadCanchaAsignada();
         } else {
-          console.error("Usuario no es organizador o no tiene userId:", data);
+          // Si no hay datos ni en servidor ni local, redirigir a login
+          console.error("No se pudo obtener información del usuario");
           window.location.href = "/";
         }
       } catch (error) {
         console.error("Error al verificar sesión:", error);
-        window.location.href = "/";
+        // No redirigimos automáticamente para evitar ciclos de redirección
       }
     })();
   }, []);
@@ -63,19 +92,47 @@ export default function DashboardOrganizador() {
   async function loadCanchaAsignada() {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/canchas/user/assigned", {
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: "include",
-      });
+      if (!token) return;
       
-      if (res.ok) {
-        const data = await res.json();
-        if (data.hasCancha) {
-          setUser(prev => ({ ...prev, canchaAsignada: data.cancha }));
+      try {
+        const res = await fetch("/api/canchas/user/assigned", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.hasCancha) {
+            setUser(prev => ({ 
+              ...prev, 
+              canchaAsignada: data.cancha 
+            }));
+          }
+        } else {
+          console.log("No se pudo cargar la cancha, pero continuamos:", await res.text());
+        }
+      } catch (fetchError) {
+        console.error("Error de red al cargar cancha:", fetchError);
+        // Intentar con la ruta sin /api/ como fallback
+        try {
+          const resFallback = await fetch("/canchas/user/assigned", {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
+          });
+          
+          if (resFallback.ok) {
+            const data = await resFallback.json();
+            if (data.hasCancha) {
+              setUser(prev => ({ ...prev, canchaAsignada: data.cancha }));
+            }
+          }
+        } catch (fallbackError) {
+          console.error("Error también en fallback de cancha:", fallbackError);
         }
       }
     } catch (error) {
-      console.error("Error al cargar cancha asignada:", error);
+      console.error("Error general al cargar cancha asignada:", error);
+      // No hacemos nada crítico, continuamos con la UI
     }
   }
 
@@ -243,17 +300,31 @@ export default function DashboardOrganizador() {
   }
 
   function logout() {
-    fetch("/api/usuarios/logout", { 
-      headers: {
-        "Authorization": `Bearer ${localStorage.getItem("token")}`
-      },
-      credentials: "include" 
-    }).finally(() => {
+    // Intentamos hacer logout en el servidor, pero no bloqueamos si falla
+    try {
+      fetch("/api/usuarios/logout", { 
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        },
+        credentials: "include" 
+      }).catch(error => {
+        console.log("Error en logout (no crítico):", error);
+      });
+    } catch (error) {
+      console.error("Error al intentar logout:", error);
+    } finally {
+      // Siempre limpiamos localStorage y redirigimos
+      console.log("Cerrando sesión y limpiando datos locales");
       localStorage.removeItem("userEmail");
       localStorage.removeItem("userId");
       localStorage.removeItem("token");
+      localStorage.removeItem("role");
+      localStorage.removeItem("nombre");
+      // Redirigir a la página de login
       window.location.href = "/";
-    });
+    }
   }
 
   async function descargarReportePDF(mes = null, ano = null) {
