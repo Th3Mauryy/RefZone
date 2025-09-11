@@ -59,7 +59,7 @@ export default function Dashboard() {
             // Si también falla, usar una cancha por defecto
             setCanchas([{
               _id: "default-golwin",
-              nombre: "Estadio Golwin",
+              nombre: "Cancha Golwin",
               direccion: "Av. Deportiva #123, Ciudad"
             }]);
           }
@@ -68,7 +68,7 @@ export default function Dashboard() {
           // Usar cancha por defecto si todo falla
           setCanchas([{
             _id: "default-golwin",
-            nombre: "Estadio Golwin",
+            nombre: "Cancha Golwin",
             direccion: "Av. Deportiva #123, Ciudad"
           }]);
         }
@@ -78,7 +78,7 @@ export default function Dashboard() {
       // Usar cancha por defecto si todo falla
       setCanchas([{
         _id: "default-golwin",
-        nombre: "Estadio Golwin",
+        nombre: "Cancha Golwin",
         direccion: "Av. Deportiva #123, Ciudad"
       }]);
     }

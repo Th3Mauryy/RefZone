@@ -3,6 +3,19 @@ const User = require('../models/User');
 
 async function crearCanchaGolwin() {
     try {
+        // Verificar si existe con el nombre anterior (Estadio Golwin)
+        const canchaEstadio = await Cancha.findOne({ nombre: 'Estadio Golwin' });
+        
+        // Actualizar si existe con el nombre antiguo
+        if (canchaEstadio) {
+            canchaEstadio.nombre = 'Cancha Golwin';
+            canchaEstadio.email = 'info@canchagolwin.com';
+            canchaEstadio.descripcion = 'Cancha principal para partidos de fútbol 7';
+            await canchaEstadio.save();
+            console.log('✅ Actualizado nombre de "Estadio Golwin" a "Cancha Golwin"');
+            return;
+        }
+        
         // Verificar si ya existe la cancha Golwin
         const canchaExistente = await Cancha.findOne({ nombre: 'Cancha Golwin' });
         
