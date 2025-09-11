@@ -90,6 +90,10 @@ app.use('/games', gameRoutes); // También sin el prefijo /api
 // Mapear /api/usuarios/login a authRoutes
 app.use('/api/usuarios', authRoutes);
 
+// AÑADIR: Ruta para canchas
+app.use('/api/canchas', require('../routes/canchaRoutes'));
+app.use('/canchas', require('../routes/canchaRoutes'));
+
 // Handler principal para Vercel
 module.exports = async (req, res) => {
     await connectToDatabase();

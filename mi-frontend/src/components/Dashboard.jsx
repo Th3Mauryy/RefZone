@@ -179,7 +179,21 @@ export default function Dashboard() {
       const data = await res.json();
       console.log("Partidos obtenidos:", data);
       
-      setGames(Array.isArray(data) ? data : []);
+      // Asegurarse de que cada partido tenga una cancha asignada (Golwin por defecto)
+      const partidosConCancha = Array.isArray(data) ? data.map(game => {
+        if (!game.canchaId || !game.canchaId.nombre) {
+          return {
+            ...game,
+            canchaId: {
+              nombre: "Estadio Golwin",
+              direccion: "Av. Deportiva #123, Ciudad"
+            }
+          };
+        }
+        return game;
+      }) : [];
+      
+      setGames(partidosConCancha);
     } catch (error) {
       console.error("Error en loadGames:", error);
       setError(`Error al cargar los partidos: ${error.message}`);
@@ -204,7 +218,22 @@ export default function Dashboard() {
         if (fallbackRes.ok) {
           const fallbackData = await fallbackRes.json();
           console.log("Partidos obtenidos desde fallback:", fallbackData);
-          setGames(Array.isArray(fallbackData) ? fallbackData : []);
+          
+          // Aplicar la misma lógica de asignar cancha por defecto
+          const partidosConCancha = Array.isArray(fallbackData) ? fallbackData.map(game => {
+            if (!game.canchaId || !game.canchaId.nombre) {
+              return {
+                ...game,
+                canchaId: {
+                  nombre: "Estadio Golwin",
+                  direccion: "Av. Deportiva #123, Ciudad"
+                }
+              };
+            }
+            return game;
+          }) : [];
+          
+          setGames(partidosConCancha);
           setError(""); // Limpiar error si el fallback fue exitoso
         }
       } catch (fallbackError) {

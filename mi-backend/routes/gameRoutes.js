@@ -51,7 +51,9 @@ router.get('/', verifyToken, async (req, res) => {
         console.log(`Encontrados ${games.length} partidos`);
         
         // Verificar si hay partidos sin cancha asignada
-        const canchaGolwin = await mongoose.model('Cancha').findOne({ nombre: 'Estadio Golwin' });
+        // Usar el modelo importado directamente en lugar de mongoose.model
+        const Cancha = require('../models/Cancha');
+        const canchaGolwin = await Cancha.findOne({ nombre: 'Estadio Golwin' });
         
         if (canchaGolwin) {
             console.log('Cancha Golwin encontrada:', canchaGolwin._id);

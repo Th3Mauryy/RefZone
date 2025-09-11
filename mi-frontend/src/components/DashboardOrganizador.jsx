@@ -180,7 +180,22 @@ export default function DashboardOrganizador() {
       
       const data = await res.json();
       console.log("Partidos obtenidos para el organizador:", data);
-      setGames(Array.isArray(data) ? data : []);
+      
+      // Asegurarse de que cada partido tenga una cancha asignada (Golwin por defecto)
+      const partidosConCancha = Array.isArray(data) ? data.map(game => {
+        if (!game.canchaId || !game.canchaId.nombre) {
+          return {
+            ...game,
+            canchaId: {
+              nombre: "Estadio Golwin",
+              direccion: "Av. Deportiva #123, Ciudad"
+            }
+          };
+        }
+        return game;
+      }) : [];
+      
+      setGames(partidosConCancha);
     } catch (error) { 
       console.error("Error al cargar los partidos:", error);
       setError(`Error al cargar los partidos: ${error.message}`);
@@ -199,7 +214,22 @@ export default function DashboardOrganizador() {
         if (fallbackRes.ok) {
           const fallbackData = await fallbackRes.json();
           console.log("Partidos obtenidos desde fallback:", fallbackData);
-          setGames(Array.isArray(fallbackData) ? fallbackData : []);
+          
+          // Aplicar la misma lógica de asignar cancha por defecto
+          const partidosConCancha = Array.isArray(fallbackData) ? fallbackData.map(game => {
+            if (!game.canchaId || !game.canchaId.nombre) {
+              return {
+                ...game,
+                canchaId: {
+                  nombre: "Estadio Golwin",
+                  direccion: "Av. Deportiva #123, Ciudad"
+                }
+              };
+            }
+            return game;
+          }) : [];
+          
+          setGames(partidosConCancha);
           setError(""); // Limpiar error si el fallback fue exitoso
         }
       } catch (fallbackError) {
@@ -601,6 +631,7 @@ export default function DashboardOrganizador() {
                         <th>Fecha y Hora</th>
                         <th>Nombre del Partido</th>
                         <th>Ubicación</th>
+                        <th>Cancha</th>
                         <th>Árbitro Asignado</th>
                         <th>Acciones</th>
                       </tr>
@@ -630,6 +661,16 @@ export default function DashboardOrganizador() {
                                 <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
                               </svg>
                               <span className="text-gray-700">{game.location}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="flex items-center space-x-2">
+                              <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8c0 .817-.665 1.5-1.5 1.5a.5.5 0 00-.5.5v2a.5.5 0 00.5.5h2a.5.5 0 00.5-.5V12a.5.5 0 00-.5-.5 1.5 1.5 0 01-1.5-1.5V9c0-.817.665-1.5 1.5-1.5h1c.828 0 1.5-.672 1.5-1.5S11.328 4.5 10.5 4.5H10c-.828 0-1.5.672-1.5 1.5v1a.5.5 0 01-.5.5 2.5 2.5 0 00-2.5 2.5c0 .664.193 1.321.57 1.881.74 1.096 1.934 1.759 3.43 1.759 1.6 0 3-1.9 3-3.5" clipRule="evenodd"/>
+                              </svg>
+                              <span className="text-blue-700">
+                                {game.canchaId && game.canchaId.nombre ? game.canchaId.nombre : "Estadio Golwin"}
+                              </span>
                             </div>
                           </td>
                           <td>

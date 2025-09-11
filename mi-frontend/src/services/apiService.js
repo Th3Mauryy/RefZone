@@ -1,8 +1,6 @@
 // Configuración de la URL base para la API
 const isProduction = window.location.hostname !== 'localhost';
-const API_BASE_URL = isProduction
-  ? '/api'  // En producción (Vercel) - Frontend y Backend en mismo dominio
-  : 'http://localhost:5000/api';  // En desarrollo local
+const API_BASE_URL = isProduction ? 'https://ref-zone.vercel.app/api' : 'http://localhost:3000';
 
 console.log('🔍 Environment check:', {
   hostname: window.location.hostname,
@@ -13,20 +11,17 @@ console.log('🔍 Environment check:', {
 // Función para obtener el token CSRF
 export const getCSRFToken = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/csrf-token`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-    
+    console.log('🔒 Solicitando CSRF token...');
+    const response = await fetch(`${API_BASE_URL}/csrf-token`);
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`Error HTTP: ${response.status}`);
     }
-    
     const data = await response.json();
+    console.log('✅ CSRF token recibido:', data);
     return data.csrfToken;
   } catch (error) {
-    console.error('Error al obtener el token CSRF:', error);
-    return null;
+    console.error('❌ Error al obtener el token CSRF:', error);
+    throw error;
   }
 };
 
