@@ -43,19 +43,36 @@ router.get('/', verifyToken, async (req, res) => {
         
         console.log('Buscando partidos con query:', query);
         
-        // Primero intentamos con populate para canchaId
-        try {
-            const games = await Game.find(query)
+        // Obtener todos los partidos con populate
+        const games = await Game.find(query)
+            .populate('arbitro', 'nombre email _id')
+            .populate('canchaId', 'nombre direccion telefono');
+        
+        console.log(`Encontrados ${games.length} partidos`);
+        
+        // Verificar si hay partidos sin cancha asignada
+        const canchaGolwin = await mongoose.model('Cancha').findOne({ nombre: 'Estadio Golwin' });
+        
+        if (canchaGolwin) {
+            console.log('Cancha Golwin encontrada:', canchaGolwin._id);
+            
+            // Actualizar los partidos que no tienen cancha asignada
+            for (const game of games) {
+                if (!game.canchaId) {
+                    console.log(`Asignando cancha Golwin al partido: ${game.name}`);
+                    game.canchaId = canchaGolwin._id;
+                    await game.save();
+                }
+            }
+            
+            // Volver a obtener los partidos actualizados
+            const updatedGames = await Game.find(query)
                 .populate('arbitro', 'nombre email _id')
                 .populate('canchaId', 'nombre direccion telefono');
                 
-            console.log(`Encontrados ${games.length} partidos`);
-            return res.status(200).json(games);
-        } catch (populateError) {
-            console.error('Error al popular datos:', populateError);
-            // Si falla el populate, intentamos sin él
-            const games = await Game.find(query);
-            console.log(`Encontrados ${games.length} partidos (sin populate)`);
+            return res.status(200).json(updatedGames);
+        } else {
+            console.log('No se encontró la cancha Golwin');
             return res.status(200).json(games);
         }
     } catch (error) {

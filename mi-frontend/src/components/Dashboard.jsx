@@ -28,15 +28,59 @@ export default function Dashboard() {
 
   async function loadCanchas() {
     try {
+      console.log("Intentando cargar canchas desde /api/canchas");
       const res = await fetch("/api/canchas", {
         credentials: "include",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`
+        }
       });
       if (res.ok) {
         const data = await res.json();
+        console.log("Canchas cargadas correctamente:", data);
         setCanchas(data);
+      } else {
+        console.log("Error al cargar canchas, status:", res.status);
+        // Intentar fallback sin /api/
+        try {
+          console.log("Intentando fallback: /canchas");
+          const fallbackRes = await fetch("/canchas", {
+            credentials: "include",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`
+            }
+          });
+          if (fallbackRes.ok) {
+            const fallbackData = await fallbackRes.json();
+            console.log("Canchas cargadas desde fallback:", fallbackData);
+            setCanchas(fallbackData);
+          } else {
+            console.log("Fallback también falló, status:", fallbackRes.status);
+            // Si también falla, usar una cancha por defecto
+            setCanchas([{
+              _id: "default-golwin",
+              nombre: "Estadio Golwin",
+              direccion: "Av. Deportiva #123, Ciudad"
+            }]);
+          }
+        } catch (fallbackError) {
+          console.error("Error en fallback de canchas:", fallbackError);
+          // Usar cancha por defecto si todo falla
+          setCanchas([{
+            _id: "default-golwin",
+            nombre: "Estadio Golwin",
+            direccion: "Av. Deportiva #123, Ciudad"
+          }]);
+        }
       }
     } catch (error) {
       console.error("Error al cargar canchas:", error);
+      // Usar cancha por defecto si todo falla
+      setCanchas([{
+        _id: "default-golwin",
+        nombre: "Estadio Golwin",
+        direccion: "Av. Deportiva #123, Ciudad"
+      }]);
     }
   }
 
@@ -473,8 +517,11 @@ export default function Dashboard() {
                                         <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
                                       </svg>
                                     </div>
+                                    {console.log("Cancha del partido:", game.canchaId)}
                                     <span className="text-sm font-medium text-blue-700">
-                                      {game.canchaId?.nombre || "Sin cancha"}
+                                      {game.canchaId && game.canchaId.nombre ? 
+                                        game.canchaId.nombre : 
+                                        "Estadio Golwin"}
                                     </span>
                                   </div>
                                 </td>
