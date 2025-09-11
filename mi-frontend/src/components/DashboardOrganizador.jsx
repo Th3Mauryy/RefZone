@@ -13,7 +13,7 @@ export default function DashboardOrganizador() {
   const [editingId, setEditingId] = useState(null);
 
   const [postuladosModal, setPostuladosModal] = useState({ open: false, postulados: [], gameId: null });
-  const [reporteModal, setReporteModal] = useState({ open: false, mes: new Date().getMonth() + 1, ano: new Date().getFullYear() });
+  const [reporteModal, setReporteModal] = useState({ open: false, mes: new Date().getMonth() + 1, ano: new Date().getFullYear(), cargando: false });
 
   const [stats, setStats] = useState({ total: 0, upcoming: 0, needsReferee: 0 });
   const [user, setUser] = useState(null);
@@ -375,6 +375,9 @@ export default function DashboardOrganizador() {
 
   async function descargarReportePDF(mes = null, ano = null) {
     try {
+      // Mostrar indicador de carga
+      setReporteModal(prevState => ({ ...prevState, cargando: true }));
+      
       // Si no se proporcionan mes/año, usar los del modal o fecha actual
       const mesNumero = mes || reporteModal.mes;
       const anoReporte = ano || reporteModal.ano;
@@ -392,21 +395,194 @@ export default function DashboardOrganizador() {
       
       console.log(`Generando reporte para ${mesNombre} de ${anoReporte}`);
       
-      // Construir URL del reporte con token
-      // Intentar con URL absoluta para Vercel
+      // Construir URL para obtener los datos del reporte
       const baseUrl = window.location.hostname === 'localhost' ? '' : 'https://ref-zone.vercel.app';
-      const reporteUrl = `${baseUrl}/api/reportes/reporte-pdf?mes=${mesNombre}&anio=${anoReporte}&token=${token}`;
+      const reporteUrl = `${baseUrl}/api/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`;
       
-      // Abrir en nueva pestaña
-      window.open(reporteUrl, '_blank');
+      // Obtener los datos del reporte
+      const response = await fetch(reporteUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error al obtener datos del reporte: ${response.status}`);
+      }
+      
+      const reporteData = await response.json();
+      console.log('Datos del reporte obtenidos:', reporteData);
+      
+      // Cargar la biblioteca jsPDF dinámicamente
+      if (!window.jspdf) {
+        console.log('Cargando biblioteca jsPDF...');
+        const jsPDFScript = document.createElement('script');
+        jsPDFScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        document.body.appendChild(jsPDFScript);
+        
+        await new Promise((resolve) => {
+          jsPDFScript.onload = resolve;
+        });
+        
+        console.log('jsPDF cargado correctamente');
+      }
+      
+      // Generar el PDF en el navegador usando jsPDF
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      
+      // Configuración de página
+      const pageWidth = doc.internal.pageSize.width;
+      const margin = 20;
+      
+      // Agregar encabezado
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('RefZone - Reporte de Partidos', pageWidth/2, margin, { align: 'center' });
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(14);
+      doc.text(reporteData.cancha.nombre, pageWidth/2, margin + 10, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.text(`${reporteData.periodo.mes} de ${reporteData.periodo.anio}`, pageWidth/2, margin + 18, { align: 'center' });
+      
+      // Agregar información de la cancha
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('Información de la cancha:', margin, margin + 30);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Dirección: ${reporteData.cancha.direccion}`, margin, margin + 38);
+      doc.text(`Contacto: ${reporteData.cancha.telefono}`, margin, margin + 46);
+      doc.text(`Email: ${reporteData.cancha.email}`, margin, margin + 54);
+      
+      // Agregar resumen
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('Resumen del período:', margin, margin + 68);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Total de partidos: ${reporteData.estadisticas.total}`, margin, margin + 76);
+      doc.text(`Partidos con árbitro asignado: ${reporteData.estadisticas.conArbitro}`, margin, margin + 84);
+      doc.text(`Partidos sin árbitro: ${reporteData.estadisticas.sinArbitro}`, margin, margin + 92);
+      
+      // Agregar tabla de partidos
+      if (reporteData.partidos.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text('Lista de partidos:', margin, margin + 106);
+        
+        // Configuración de tabla
+        let y = margin + 114;
+        const rowHeight = 10;
+        
+        // Encabezados
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text('Fecha', margin, y);
+        doc.text('Nombre', margin + 30, y);
+        doc.text('Hora', margin + 100, y);
+        doc.text('Árbitro', margin + 130, y);
+        
+        // Línea separadora
+        y += 2;
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 6;
+        
+        // Datos
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        
+        // Formatear fechas
+        function formatDate(dateStr) {
+          try {
+            const parts = dateStr.includes('-') 
+              ? dateStr.split('-') 
+              : dateStr.split('/');
+            
+            if (parts.length === 3) {
+              // Asumimos YYYY-MM-DD o DD/MM/YYYY
+              if (dateStr.includes('-')) {
+                return `${parts[2].split('T')[0]}/${parts[1]}/${parts[0]}`;
+              } else {
+                return dateStr;
+              }
+            }
+            return dateStr;
+          // eslint-disable-next-line no-unused-vars
+          } catch (_) {
+            // Ignorar errores y devolver la cadena original
+            return dateStr;
+          }
+        }
+        
+        // Función para formatear hora
+        function formatTime(time) {
+          if (!time) return '';
+          const [h, m] = time.split(':');
+          const hour = parseInt(h);
+          return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
+        }
+        
+        for (const partido of reporteData.partidos) {
+          // Nueva página si no hay espacio
+          if (y > 250) {
+            doc.addPage();
+            y = margin;
+            
+            // Encabezados en nueva página
+            doc.setFont('helvetica', 'bold');
+            doc.text('Fecha', margin, y);
+            doc.text('Nombre', margin + 30, y);
+            doc.text('Hora', margin + 100, y);
+            doc.text('Árbitro', margin + 130, y);
+            
+            // Línea separadora
+            y += 2;
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 6;
+            doc.setFont('helvetica', 'normal');
+          }
+          
+          // Datos del partido
+          doc.text(formatDate(partido.fecha), margin, y);
+          doc.text(partido.nombre, margin + 30, y);
+          doc.text(formatTime(partido.hora), margin + 100, y);
+          doc.text(partido.arbitro, margin + 130, y);
+          
+          y += rowHeight;
+        }
+      } else {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(10);
+        doc.text('No hay partidos registrados para este período.', margin, margin + 114);
+      }
+      
+      // Agregar pie de página
+      const fechaGeneracion = new Date();
+      const fechaStr = `${fechaGeneracion.getDate()}/${fechaGeneracion.getMonth() + 1}/${fechaGeneracion.getFullYear()} ${fechaGeneracion.getHours()}:${fechaGeneracion.getMinutes()}:${fechaGeneracion.getSeconds()}`;
+      
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8);
+      doc.text(`Reporte generado el ${fechaStr}`, pageWidth/2, 285, { align: 'center' });
+      
+      // Guardar el PDF con un nombre descriptivo
+      const nombreArchivo = `reporte-partidos-${reporteData.cancha.nombre.replace(/\s+/g, '-')}-${mesNombre}-${anoReporte}.pdf`;
+      doc.save(nombreArchivo);
       
       // Cerrar modal
-      setReporteModal({ ...reporteModal, open: false });
+      setReporteModal(prevState => ({ ...prevState, open: false, cargando: false }));
       
-      console.log('Reporte abierto en nueva pestaña');
+      console.log('Reporte PDF generado correctamente');
     } catch (error) {
-      console.error('Error al abrir reporte:', error);
+      console.error('Error al generar reporte:', error);
       alert('Error al generar el reporte. Inténtalo de nuevo.');
+      setReporteModal(prevState => ({ ...prevState, cargando: false }));
     }
   }
 
@@ -871,100 +1047,120 @@ export default function DashboardOrganizador() {
 
       {/* Modal selección de reporte */}
       {reporteModal.open && (
-        <div className="modal-overlay" onClick={() => setReporteModal({ ...reporteModal, open: false })}>
+        <div className="modal-overlay" onClick={() => !reporteModal.cargando && setReporteModal({ ...reporteModal, open: false })}>
           <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="text-lg font-display font-semibold text-gray-800">Generar Reporte PDF</h3>
-              <button 
-                className="text-gray-400 hover:text-gray-600"
-                onClick={() => setReporteModal({ ...reporteModal, open: false })}
-              >
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
-                </svg>
-              </button>
+              {!reporteModal.cargando && (
+                <button 
+                  className="text-gray-400 hover:text-gray-600"
+                  onClick={() => setReporteModal({ ...reporteModal, open: false })}
+                >
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                  </svg>
+                </button>
+              )}
             </div>
             <div className="modal-body">
-              <div className="space-y-4">
-                <p className="text-gray-600 text-sm">
-                  Selecciona el periodo para generar el reporte de partidos de tu cancha.
-                </p>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="form-group">
-                    <label className="form-label">Mes</label>
-                    <select 
-                      className="form-input"
-                      value={reporteModal.mes}
-                      onChange={(e) => setReporteModal({ ...reporteModal, mes: parseInt(e.target.value) })}
-                    >
-                      <option value={1}>Enero</option>
-                      <option value={2}>Febrero</option>
-                      <option value={3}>Marzo</option>
-                      <option value={4}>Abril</option>
-                      <option value={5}>Mayo</option>
-                      <option value={6}>Junio</option>
-                      <option value={7}>Julio</option>
-                      <option value={8}>Agosto</option>
-                      <option value={9}>Septiembre</option>
-                      <option value={10}>Octubre</option>
-                      <option value={11}>Noviembre</option>
-                      <option value={12}>Diciembre</option>
-                    </select>
-                  </div>
-                  
-                  <div className="form-group">
-                    <label className="form-label">Año</label>
-                    <select 
-                      className="form-input"
-                      value={reporteModal.ano}
-                      onChange={(e) => setReporteModal({ ...reporteModal, ano: parseInt(e.target.value) })}
-                    >
-                      {Array.from({ length: 5 }, (_, i) => {
-                        const year = new Date().getFullYear() - 2 + i;
-                        return (
-                          <option key={year} value={year}>{year}</option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <div className="flex items-start space-x-3">
-                    <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+              {reporteModal.cargando ? (
+                <div className="text-center py-8 space-y-4">
+                  <div className="flex justify-center">
+                    <svg className="w-12 h-12 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <div>
-                      <h4 className="font-medium text-blue-900">¿Qué incluye el reporte?</h4>
-                      <ul className="text-sm text-blue-800 mt-1 space-y-1">
-                        <li>• Partidos activos y próximos</li>
-                        <li>• Historial de partidos del periodo</li>
-                        <li>• Estadísticas de completados/cancelados</li>
-                        <li>• Información de árbitros asignados</li>
-                      </ul>
+                  </div>
+                  <p className="font-medium text-gray-800">Generando reporte PDF...</p>
+                  <p className="text-sm text-gray-600">El reporte se descargará automáticamente cuando esté listo.</p>
+                  <p className="text-xs text-gray-500">Por favor espere, esto puede tomar unos momentos</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-gray-600 text-sm">
+                    Selecciona el periodo para generar el reporte de partidos de tu cancha.
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="form-group">
+                      <label className="form-label">Mes</label>
+                      <select 
+                        className="form-input"
+                        value={reporteModal.mes}
+                        onChange={(e) => setReporteModal({ ...reporteModal, mes: parseInt(e.target.value) })}
+                      >
+                        <option value={1}>Enero</option>
+                        <option value={2}>Febrero</option>
+                        <option value={3}>Marzo</option>
+                        <option value={4}>Abril</option>
+                        <option value={5}>Mayo</option>
+                        <option value={6}>Junio</option>
+                        <option value={7}>Julio</option>
+                        <option value={8}>Agosto</option>
+                        <option value={9}>Septiembre</option>
+                        <option value={10}>Octubre</option>
+                        <option value={11}>Noviembre</option>
+                        <option value={12}>Diciembre</option>
+                      </select>
+                    </div>
+                    
+                    <div className="form-group">
+                      <label className="form-label">Año</label>
+                      <select 
+                        className="form-input"
+                        value={reporteModal.ano}
+                        onChange={(e) => setReporteModal({ ...reporteModal, ano: parseInt(e.target.value) })}
+                      >
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const year = new Date().getFullYear() - 2 + i;
+                          return (
+                            <option key={year} value={year}>{year}</option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                      </svg>
+                      <div>
+                        <h4 className="font-medium text-blue-900">¿Qué incluye el reporte?</h4>
+                        <ul className="text-sm text-blue-800 mt-1 space-y-1">
+                          <li>• Partidos activos y próximos</li>
+                          <li>• Historial de partidos del periodo</li>
+                          <li>• Estadísticas de completados/cancelados</li>
+                          <li>• Información de árbitros asignados</li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
             <div className="modal-footer">
               <div className="flex justify-end space-x-3">
-                <button 
-                  className="btn btn-ghost" 
-                  onClick={() => setReporteModal({ ...reporteModal, open: false })}
-                >
-                  Cancelar
-                </button>
-                <button 
-                  className="btn btn-primary" 
-                  onClick={() => descargarReportePDF()}
-                >
-                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
-                  </svg>
-                  Ver Reporte
-                </button>
+                {!reporteModal.cargando && (
+                  <>
+                    <button 
+                      className="btn btn-ghost" 
+                      onClick={() => setReporteModal({ ...reporteModal, open: false })}
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={() => descargarReportePDF()}
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
+                      </svg>
+                      Generar PDF
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
