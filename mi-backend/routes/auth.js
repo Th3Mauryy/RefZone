@@ -123,15 +123,22 @@ router.post('/login', async (req, res) => {
 
 router.get('/check-session', verifyToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate('canchaAsignada');
+    // Usar .lean() para obtener un objeto JavaScript puro y evitar problemas con circular references
+    const user = await User.findById(req.user.id)
+      .populate('canchaAsignada')
+      .lean()
+      .exec();
+    
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
+    
+    // Enviar solo los datos necesarios
     res.status(200).json({
       userId: user._id,
       nombre: user.nombre,
       imagenPerfil: user.imagenPerfil,
-      canchaAsignada: user.canchaAsignada,
+      role: user.role,
     });
   } catch (error) {
     console.error('Error al verificar la sesión:', error);

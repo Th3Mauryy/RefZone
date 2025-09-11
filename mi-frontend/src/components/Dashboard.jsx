@@ -43,24 +43,44 @@ export default function Dashboard() {
   async function loadUser() {
     try {
       const token = localStorage.getItem("token");
+      
+      if (!token) {
+        console.error("No hay token disponible");
+        window.location.href = "/";
+        return;
+      }
+      
       const res = await fetch("/api/usuarios/check-session", {
         headers: { Authorization: `Bearer ${token}` },
         credentials: "include",
       });
+      
+      if (!res.ok) {
+        console.error("Error en check-session:", await res.text());
+        localStorage.removeItem("token");
+        window.location.href = "/";
+        return;
+      }
+      
       const data = await res.json();
-      if (res.ok) {
+      
+      if (data?.userId && data?.role === 'arbitro') {
+        // Solo si es árbitro permitimos acceso
         setUser({ 
           nombre: data.nombre || "Usuario", 
           userId: data.userId, 
           imagenPerfil: data.imagenPerfil,
           email: data.email || "",
           contacto: data.contacto || "",
-          experiencia: data.experiencia || ""
+          experiencia: data.experiencia || "",
+          role: data.role
         });
       } else {
+        console.error("Usuario no es árbitro o falta userId:", data);
         window.location.href = "/";
       }
-    } catch {
+    } catch (error) {
+      console.error("Error al cargar datos de usuario:", error);
       window.location.href = "/";
     }
   }

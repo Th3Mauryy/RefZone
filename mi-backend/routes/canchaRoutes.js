@@ -29,17 +29,21 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// Obtener la cancha asignada al usuario actual
+// Obtener todas las canchas
 router.get('/user/assigned', verifyToken, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).populate('canchaAsignada');
+        // Usar .lean() para obtener un objeto JS puro
+        const user = await User.findById(req.user.id)
+            .populate('canchaAsignada')
+            .lean()
+            .exec();
         
         if (!user) {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
         
         if (!user.canchaAsignada) {
-            return res.status(404).json({ message: 'No tienes una cancha asignada', hasCancha: false });
+            return res.status(200).json({ hasCancha: false });
         }
         
         res.json({

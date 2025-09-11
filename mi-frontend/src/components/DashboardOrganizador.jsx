@@ -22,18 +22,62 @@ export default function DashboardOrganizador() {
   useEffect(() => {
     (async () => {
       try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          window.location.href = "/";
+          return;
+        }
+
         const res = await fetch("/api/usuarios/check-session", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${token}` },
           credentials: "include",
         });
+        
+        if (!res.ok) {
+          console.error("Error en check-session:", await res.text());
+          localStorage.removeItem("token");
+          window.location.href = "/";
+          return;
+        }
+        
         const data = await res.json();
-        if (data?.userId) setUser(data);
-        else window.location.href = "/";
-      } catch {
+        
+        if (data?.userId && data?.role === 'organizador') {
+          // Solo si es organizador permitimos acceso
+          setUser(data);
+          
+          // Cargar información de la cancha asignada
+          loadCanchaAsignada();
+        } else {
+          console.error("Usuario no es organizador o no tiene userId:", data);
+          window.location.href = "/";
+        }
+      } catch (error) {
+        console.error("Error al verificar sesión:", error);
         window.location.href = "/";
       }
     })();
   }, []);
+  
+  // Función para cargar la cancha asignada al organizador
+  async function loadCanchaAsignada() {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/canchas/user/assigned", {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.hasCancha) {
+          setUser(prev => ({ ...prev, canchaAsignada: data.cancha }));
+        }
+      }
+    } catch (error) {
+      console.error("Error al cargar cancha asignada:", error);
+    }
+  }
 
   // Cargar datos
   useEffect(() => {
@@ -262,7 +306,13 @@ export default function DashboardOrganizador() {
                 </div>
                 <div>
                   <h1 className="text-xl font-display font-bold text-gray-800">RefZone Admin</h1>
-                  <p className="text-sm text-gray-600">Panel de Organizador</p>
+                  <p className="text-sm text-gray-600">
+                    {user?.canchaAsignada ? (
+                      <span className="text-green-600 font-medium">{user.canchaAsignada.nombre}</span>
+                    ) : (
+                      "Panel de Organizador"
+                    )}
+                  </p>
                 </div>
               </div>
             </div>
