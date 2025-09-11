@@ -13,6 +13,7 @@ const authRoutes = require('./routes/auth');
 const gameRoutes = require('./routes/gameRoutes');
 const crearOrganizadorPorDefecto = require('./config/initOrganizador');
 const crearCanchaGolwin = require('./config/initCancha');
+const migrarEstadioACancha = require('./config/migrateEstadioToCancha');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const csrf = require('csurf');
@@ -60,6 +61,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/refzone')
     .then(() => {
         console.log('Conexión exitosa a MongoDB Atlas');
         crearOrganizadorPorDefecto(); // Crear organizador por defecto
+        migrarEstadioACancha(); // Migrar nombre de Estadio a Cancha
         crearCanchaGolwin(); // Crear cancha Golwin y asignar organizador
         
         // Iniciar tarea programada para auto-eliminar partidos
