@@ -395,74 +395,130 @@ export default function DashboardOrganizador() {
       
       console.log(`Generando reporte para ${mesNombre} de ${anoReporte}`);
       
-      // Construir URL base según el entorno
-      const baseUrl = window.location.hostname === 'localhost' ? '' : 'https://ref-zone.vercel.app';
+      // En lugar de intentar obtener datos del servidor, usaremos los datos que ya tenemos
+      // y generaremos el PDF directamente desde el cliente
       
-      // Intentar obtener los datos del reporte, primero con /api/ y luego sin él si falla
-      let reporteData;
-      let response;
+      // Filtrar partidos por mes y año
+      const partidosFiltrados = games.filter(partido => {
+        try {
+          if (typeof partido.date === 'string') {
+            // Intentar extraer el mes y año de la fecha
+            if (partido.date.includes('-')) {
+              // Formato YYYY-MM-DD
+              const [anio, mes] = partido.date.split('-');
+              return parseInt(anio) === anoReporte && parseInt(mes) === mesNumero;
+            } else if (partido.date.includes('/')) {
+              // Formato DD/MM/YYYY o MM/DD/YYYY
+              const partes = partido.date.split('/');
+              if (partes.length === 3) {
+                // Asumimos DD/MM/YYYY 
+                if (parseInt(partes[0]) > 12) {
+                  return parseInt(partes[2]) === anoReporte && parseInt(partes[1]) === mesNumero;
+                } else {
+                  // Formato MM/DD/YYYY
+                  return parseInt(partes[2]) === anoReporte && parseInt(partes[0]) === mesNumero;
+                }
+              }
+            }
+          }
+          // Si no podemos determinar la fecha, incluimos el partido
+          return true;
+        } catch (e) {
+          console.error('Error al filtrar partido:', e);
+          return true; // Incluir el partido si hay error
+        }
+      });
       
-      try {
-        // Primer intento con /api/
-        const reporteUrl = `${baseUrl}/api/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`;
-        console.log('Intentando con URL:', reporteUrl);
-        
-        response = await fetch(reporteUrl, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Error al obtener datos del reporte: ${response.status}`);
-        }
-        
-        reporteData = await response.json();
-      // eslint-disable-next-line no-unused-vars
-      } catch (error) {
-        console.log('Primer intento fallido, probando ruta alternativa...');
-        
-        // Segundo intento sin /api/
-        const reporteUrlFallback = `${baseUrl}/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`;
-        console.log('Intentando con URL fallback:', reporteUrlFallback);
-        
-        response = await fetch(reporteUrlFallback, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Error al obtener datos del reporte (ambos intentos fallidos): ${response.status}`);
-        }
-        
-        reporteData = await response.json();
+      console.log(`Partidos filtrados para el reporte: ${partidosFiltrados.length}`);
+      
+      // Obtener información de la cancha desde user.canchaAsignada
+      if (!user?.canchaAsignada) {
+        alert('No tienes una cancha asignada. No se puede generar el reporte.');
+        setReporteModal(prevState => ({ ...prevState, cargando: false }));
+        return;
       }
       
-      console.log('Datos del reporte obtenidos:', reporteData);
+      // Crear objeto reporteData manualmente
+      const reporteData = {
+        cancha: {
+          nombre: user.canchaAsignada.nombre || 'Cancha sin nombre',
+          direccion: user.canchaAsignada.direccion || 'Dirección no disponible',
+          telefono: user.canchaAsignada.telefono || 'Teléfono no disponible',
+          email: user.canchaAsignada.email || 'Email no disponible'
+        },
+        periodo: {
+          mes: mesNombre.charAt(0).toUpperCase() + mesNombre.slice(1),
+          anio: anoReporte
+        },
+        partidos: partidosFiltrados.map(p => ({
+          id: p._id,
+          nombre: p.name,
+          fecha: p.date,
+          hora: p.time,
+          arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email || 'Sin nombre') : 'Sin asignar',
+          tieneArbitro: !!p.arbitro
+        })),
+        estadisticas: {
+          total: partidosFiltrados.length,
+          conArbitro: partidosFiltrados.filter(p => p.arbitro).length,
+          sinArbitro: partidosFiltrados.filter(p => !p.arbitro).length
+        },
+        fechaGeneracion: new Date()
+      };
+      
+      console.log('Datos del reporte preparados localmente:', reporteData);
       console.log('Datos del reporte obtenidos:', reporteData);
       
-      // Cargar la biblioteca jsPDF dinámicamente
-      if (!window.jspdf) {
-        console.log('Cargando biblioteca jsPDF...');
-        const jsPDFScript = document.createElement('script');
-        jsPDFScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-        document.body.appendChild(jsPDFScript);
+      // Verificar si la biblioteca jsPDF está disponible
+      console.log('Verificando disponibilidad de jsPDF...');
+      console.log('Estado actual window.jspdf:', typeof window.jspdf);
+      
+      // Intenta usar la versión incluida en el head del documento
+      if (typeof window.jspdf === 'undefined') {
+        console.log('La biblioteca jsPDF no está disponible en window.jspdf, intentando alternativas...');
         
-        await new Promise((resolve) => {
-          jsPDFScript.onload = resolve;
-        });
-        
-        console.log('jsPDF cargado correctamente');
+        // Verificar si está disponible como window.jsPDF (mayúsculas)
+        if (typeof window.jsPDF === 'object') {
+          console.log('jsPDF encontrado en window.jsPDF');
+          window.jspdf = window.jsPDF;
+        } else {
+          // Si no, cargarla dinámicamente
+          console.log('Cargando biblioteca jsPDF dinámicamente...');
+          try {
+            const jsPDFScript = document.createElement('script');
+            jsPDFScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            jsPDFScript.crossOrigin = 'anonymous';
+            document.body.appendChild(jsPDFScript);
+            
+            await new Promise((resolve, reject) => {
+              jsPDFScript.onload = resolve;
+              jsPDFScript.onerror = () => reject(new Error('Error al cargar jsPDF'));
+              setTimeout(() => reject(new Error('Timeout al cargar jsPDF')), 10000);
+            });
+            
+            console.log('jsPDF cargado correctamente');
+          } catch (loadError) {
+            console.error('Error cargando jsPDF:', loadError);
+            alert('No se pudo cargar la biblioteca para generar PDFs.');
+            setReporteModal(prevState => ({ ...prevState, cargando: false }));
+            return;
+          }
+        }
       }
       
-      // Generar el PDF en el navegador usando jsPDF
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
+      // Último intento para acceder a jsPDF
+      // Algunos CDNs lo exponen como window.jspdf y otros como window.jsPDF
+      const jsPDFClass = window.jspdf?.jsPDF || window.jsPDF || window.jspdf;
+      
+      if (!jsPDFClass) {
+        console.error('No se pudo acceder a la clase jsPDF');
+        alert('Error: No se pudo inicializar la biblioteca para generar PDFs');
+        setReporteModal(prevState => ({ ...prevState, cargando: false }));
+        return;
+      }
+      
+      console.log('Iniciando generación del PDF con biblioteca jsPDF...');
+      const doc = new jsPDFClass();
       
       // Configuración de página
       const pageWidth = doc.internal.pageSize.width;
@@ -603,16 +659,22 @@ export default function DashboardOrganizador() {
       doc.text(`Reporte generado el ${fechaStr}`, pageWidth/2, 285, { align: 'center' });
       
       // Guardar el PDF con un nombre descriptivo
-      const nombreArchivo = `reporte-partidos-${reporteData.cancha.nombre.replace(/\s+/g, '-')}-${mesNombre}-${anoReporte}.pdf`;
-      doc.save(nombreArchivo);
-      
-      // Cerrar modal
-      setReporteModal(prevState => ({ ...prevState, open: false, cargando: false }));
-      
-      console.log('Reporte PDF generado correctamente');
+      try {
+        const nombreArchivo = `reporte-partidos-${reporteData.cancha.nombre.replace(/\s+/g, '-')}-${mesNombre}-${anoReporte}.pdf`;
+        doc.save(nombreArchivo);
+        
+        // Cerrar modal
+        setReporteModal(prevState => ({ ...prevState, open: false, cargando: false }));
+        
+        console.log('Reporte PDF generado correctamente');
+      } catch (pdfError) {
+        console.error('Error al guardar PDF:', pdfError);
+        alert('Error al guardar el PDF. Verifica los permisos de tu navegador e inténtalo de nuevo.');
+        setReporteModal(prevState => ({ ...prevState, cargando: false }));
+      }
     } catch (error) {
       console.error('Error al generar reporte:', error);
-      alert('Error al generar el reporte. Inténtalo de nuevo.');
+      alert(`Error al generar el reporte: ${error.message || 'Error desconocido'}. Inténtalo de nuevo.`);
       setReporteModal(prevState => ({ ...prevState, cargando: false }));
     }
   }

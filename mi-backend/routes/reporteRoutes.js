@@ -8,6 +8,104 @@ const Game = require('../models/Game');
 const User = require('../models/User');
 const verifyToken = require('../middleware/authMiddleware');
 
+// Para debugging
+console.log('Inicializando rutas de reportes...');
+
+/**
+ * Devuelve datos para un reporte de partidos de una cancha en formato JSON
+ * @route GET /reporte-datos
+ * @param {string} mes - Mes para el reporte (nombre del mes en español)
+ * @param {string} anio - Año para el reporte (4 dígitos)
+ * @param {string} canchaId - ID de la cancha (opcional, si no se proporciona se usa la cancha del usuario)
+ */
+router.get('/reporte-datos', verifyToken, async (req, res) => {
+    try {
+        const { mes, anio } = req.query;
+        let { canchaId } = req.query;
+        
+        if (!mes || !anio) {
+            return res.status(400).json({ message: 'Mes y año son requeridos' });
+        }
+        
+        // Si no se proporciona canchaId, usar la del organizador
+        if (!canchaId) {
+            const user = await User.findById(req.user.id).populate('canchaAsignada');
+            if (!user || !user.canchaAsignada) {
+                return res.status(400).json({ message: 'No tiene una cancha asignada' });
+            }
+            canchaId = user.canchaAsignada._id;
+        }
+        
+        // Convertir mes de nombre a número (1-12)
+        const meses = {
+            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+            'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+        };
+        
+        const mesNormalizado = mes.toLowerCase();
+        const mesNumero = meses[mesNormalizado];
+        
+        if (!mesNumero) {
+            return res.status(400).json({ message: 'Mes inválido' });
+        }
+        
+        // Crear consulta para el rango de fechas
+        const anioNum = parseInt(anio);
+        
+        // Convertir mes a formato de 2 dígitos (01, 02, etc.)
+        const mesPadded = mesNumero.toString().padStart(2, '0');
+        
+        // Encontrar todos los partidos de esa cancha en ese mes y año
+        const partidos = await Game.find({ 
+            canchaId, 
+            date: {
+                $regex: new RegExp(`${anioNum}-${mesPadded}|${mesPadded}/${anioNum}|${mesPadded}/${String(anioNum).slice(2)}|${anioNum}/${mesPadded}`)
+            }
+        })
+        .populate('arbitro', 'nombre email')
+        .sort({ date: 1, time: 1 });
+        
+        // Obtener la información de la cancha
+        const Cancha = require('../models/Cancha');
+        const cancha = await Cancha.findById(canchaId);
+        if (!cancha) {
+            return res.status(404).json({ message: 'Cancha no encontrada' });
+        }
+        
+        // Devolver los datos para el reporte
+        return res.json({
+            cancha: {
+                nombre: cancha.nombre,
+                direccion: cancha.direccion || 'No disponible',
+                telefono: cancha.telefono || 'No disponible',
+                email: cancha.email || 'No disponible'
+            },
+            periodo: {
+                mes: mes.charAt(0).toUpperCase() + mes.slice(1),
+                anio: anioNum
+            },
+            partidos: partidos.map(p => ({
+                id: p._id,
+                nombre: p.name,
+                fecha: p.date,
+                hora: p.time,
+                arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email) : 'Sin asignar',
+                tieneArbitro: !!p.arbitro
+            })),
+            estadisticas: {
+                total: partidos.length,
+                conArbitro: partidos.filter(p => p.arbitro).length,
+                sinArbitro: partidos.filter(p => !p.arbitro).length
+            },
+            fechaGeneracion: new Date()
+        });
+        
+    } catch (error) {
+        console.error('Error al generar datos del reporte:', error);
+        res.status(500).json({ message: 'Error al generar datos del reporte', error: error.message });
+    }
+});
+
 /**
  * Genera un reporte PDF de los partidos de una cancha para un mes y año específicos
  * @route GET /reporte-pdf
@@ -213,6 +311,20 @@ router.get('/reporte-pdf', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Error al generar el reporte PDF:', error);
         res.status(500).json({ message: 'Error al generar el reporte PDF', error: error.message });
+    }
+});
+
+// Agregamos una ruta de prueba para verificar que el router esté funcionando
+router.get('/test', (req, res) => {
+    console.log('Ruta de prueba de reportes accedida');
+    res.json({ message: 'API de reportes funcionando correctamente' });
+});
+
+// Debug: Mostrar las rutas registradas
+console.log('Rutas de reportes registradas:');
+router.stack.forEach(r => {
+    if (r.route && r.route.path) {
+        console.log(`- ${r.route.path}`);
     }
 });
 
