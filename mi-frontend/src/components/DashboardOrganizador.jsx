@@ -395,39 +395,75 @@ export default function DashboardOrganizador() {
       
       console.log(`Generando reporte para ${mesNombre} de ${anoReporte}`);
       
-      // En lugar de intentar obtener datos del servidor, usaremos los datos que ya tenemos
-      // y generaremos el PDF directamente desde el cliente
+      let partidosFiltrados = [];
+      let reporteDesdeAPI = false;
       
-      // Filtrar partidos por mes y año
-      const partidosFiltrados = games.filter(partido => {
-        try {
-          if (typeof partido.date === 'string') {
-            // Intentar extraer el mes y año de la fecha
-            if (partido.date.includes('-')) {
-              // Formato YYYY-MM-DD
-              const [anio, mes] = partido.date.split('-');
-              return parseInt(anio) === anoReporte && parseInt(mes) === mesNumero;
-            } else if (partido.date.includes('/')) {
-              // Formato DD/MM/YYYY o MM/DD/YYYY
-              const partes = partido.date.split('/');
-              if (partes.length === 3) {
-                // Asumimos DD/MM/YYYY 
-                if (parseInt(partes[0]) > 12) {
-                  return parseInt(partes[2]) === anoReporte && parseInt(partes[1]) === mesNumero;
-                } else {
-                  // Formato MM/DD/YYYY
-                  return parseInt(partes[2]) === anoReporte && parseInt(partes[0]) === mesNumero;
+      // Intentar obtener datos del servidor primero (incluye historial)
+      try {
+        const token = localStorage.getItem("token");
+        const url = `/api/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`;
+        
+        console.log('Intentando obtener datos del reporte desde la API:', url);
+        const res = await fetch(url, {
+          headers: { 
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include"
+        });
+        
+        if (res.ok) {
+          const dataAPI = await res.json();
+          console.log('Datos del reporte obtenidos desde la API:', dataAPI);
+          
+          // Si obtenemos datos desde la API, ya contienen tanto partidos activos como históricos
+          // con sus estados calculados correctamente
+          if (dataAPI && Array.isArray(dataAPI.partidos)) {
+            partidosFiltrados = dataAPI.partidos;
+            reporteDesdeAPI = true;
+            console.log(`${partidosFiltrados.length} partidos obtenidos desde la API`);
+          }
+        } else {
+          console.log('No se pudieron obtener datos desde la API, error:', await res.text());
+        }
+      } catch (apiError) {
+        console.error('Error al obtener datos de la API:', apiError);
+      }
+      
+      // Si no pudimos obtener datos de la API, filtrar los partidos localmente
+      if (!reporteDesdeAPI) {
+        console.log('Usando datos locales para generar el reporte...');
+        
+        // Filtrar partidos por mes y año
+        partidosFiltrados = games.filter(partido => {
+          try {
+            if (typeof partido.date === 'string') {
+              // Intentar extraer el mes y año de la fecha
+              if (partido.date.includes('-')) {
+                // Formato YYYY-MM-DD
+                const [anio, mes] = partido.date.split('-');
+                return parseInt(anio) === anoReporte && parseInt(mes) === mesNumero;
+              } else if (partido.date.includes('/')) {
+                // Formato DD/MM/YYYY o MM/DD/YYYY
+                const partes = partido.date.split('/');
+                if (partes.length === 3) {
+                  // Asumimos DD/MM/YYYY 
+                  if (parseInt(partes[0]) > 12) {
+                    return parseInt(partes[2]) === anoReporte && parseInt(partes[1]) === mesNumero;
+                  } else {
+                    // Formato MM/DD/YYYY
+                    return parseInt(partes[2]) === anoReporte && parseInt(partes[0]) === mesNumero;
+                  }
                 }
               }
             }
+            // Si no podemos determinar la fecha, incluimos el partido
+            return true;
+          } catch (e) {
+            console.error('Error al filtrar partido:', e);
+            return true; // Incluir el partido si hay error
           }
-          // Si no podemos determinar la fecha, incluimos el partido
-          return true;
-        } catch (e) {
-          console.error('Error al filtrar partido:', e);
-          return true; // Incluir el partido si hay error
-        }
-      });
+        });
+      }
       
       console.log(`Partidos filtrados para el reporte: ${partidosFiltrados.length}`);
       
@@ -450,18 +486,71 @@ export default function DashboardOrganizador() {
           mes: mesNombre.charAt(0).toUpperCase() + mesNombre.slice(1),
           anio: anoReporte
         },
-        partidos: partidosFiltrados.map(p => ({
-          id: p._id,
-          nombre: p.name,
-          fecha: p.date,
-          hora: p.time,
-          arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email || 'Sin nombre') : 'Sin asignar',
-          tieneArbitro: !!p.arbitro
-        })),
+        partidos: partidosFiltrados.map(p => {
+          // Determinar el estado del partido basado en la fecha y hora
+          let estado = 'Programado';
+          try {
+            const ahora = new Date();
+            let fechaPartido;
+            
+            if (typeof p.date === 'string') {
+              if (p.date.includes('-')) {
+                // Formato YYYY-MM-DD
+                fechaPartido = new Date(p.date + 'T' + (p.time || '00:00'));
+              } else if (p.date.includes('/')) {
+                // Otros formatos de fecha
+                const partes = p.date.split('/');
+                if (partes.length === 3) {
+                  if (parseInt(partes[0]) > 12) {
+                    // DD/MM/YYYY
+                    fechaPartido = new Date(`${partes[2]}-${partes[1]}-${partes[0]}T${p.time || '00:00'}`);
+                  } else {
+                    // MM/DD/YYYY
+                    fechaPartido = new Date(`${partes[2]}-${partes[0]}-${partes[1]}T${p.time || '00:00'}`);
+                  }
+                }
+              }
+            }
+            
+            if (fechaPartido && !isNaN(fechaPartido)) {
+              // Calcular diferencia en horas
+              const diferenciaMs = ahora - fechaPartido;
+              const diferenciaHoras = diferenciaMs / (1000 * 60 * 60);
+              
+              if (diferenciaHoras < 0) {
+                estado = 'Programado';
+              } else if (diferenciaHoras >= 0 && diferenciaHoras <= 2) {
+                estado = 'En curso';
+              } else {
+                estado = 'Finalizado';
+              }
+            }
+          } catch (error) {
+            console.error('Error al determinar estado del partido:', error);
+          }
+          
+          return {
+            id: p._id,
+            nombre: p.name,
+            fecha: p.date,
+            hora: p.time,
+            ubicacion: p.location || user.canchaAsignada.direccion || 'Sin ubicación',
+            arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email || 'Sin nombre') : 'Sin asignar',
+            tieneArbitro: !!p.arbitro,
+            estado: p.estado || estado  // Usar estado calculado
+          };
+        }),
+        fechaInicio: `1/${mesNumero}/${anoReporte}`,
+        fechaFin: `${new Date(anoReporte, mesNumero, 0).getDate()}/${mesNumero}/${anoReporte}`,
+        nombreCancha: user.canchaAsignada.nombre || 'Todas',
         estadisticas: {
           total: partidosFiltrados.length,
           conArbitro: partidosFiltrados.filter(p => p.arbitro).length,
-          sinArbitro: partidosFiltrados.filter(p => !p.arbitro).length
+          sinArbitro: partidosFiltrados.filter(p => !p.arbitro).length,
+          programados: partidosFiltrados.filter(p => !p.estado || p.estado === 'Programado').length,
+          enCurso: partidosFiltrados.filter(p => p.estado === 'En curso').length,
+          finalizados: partidosFiltrados.filter(p => p.estado === 'Finalizado').length,
+          cancelados: partidosFiltrados.filter(p => p.estado === 'Cancelado').length
         },
         fechaGeneracion: new Date()
       };
@@ -510,6 +599,17 @@ export default function DashboardOrganizador() {
       // Algunos CDNs lo exponen como window.jspdf y otros como window.jsPDF
       const jsPDFClass = window.jspdf?.jsPDF || window.jsPDF || window.jspdf;
       
+      // También intentar cargar HTML2Canvas para gráficos si está disponible
+      // Esto es opcional, si no está disponible el reporte se generará sin gráficas
+      let html2canvas;
+      try {
+        html2canvas = window.html2canvas;
+        console.log('HTML2Canvas encontrado:', !!html2canvas);
+      // eslint-disable-next-line no-unused-vars
+      } catch (error) {
+        console.log('HTML2Canvas no está disponible, continuando sin gráficos avanzados');
+      }
+      
       if (!jsPDFClass) {
         console.error('No se pudo acceder a la clase jsPDF');
         alert('Error: No se pudo inicializar la biblioteca para generar PDFs');
@@ -522,70 +622,196 @@ export default function DashboardOrganizador() {
       
       // Configuración de página
       const pageWidth = doc.internal.pageSize.width;
-      const margin = 20;
+      const pageHeight = doc.internal.pageSize.height;
+      const margin = 15;
       
-      // Agregar encabezado
+      // Función para añadir un fondo degradado
+      function addGradientBackground() {
+        doc.saveGraphicsState();
+        // Crear degradado de verde claro a blanco
+        const grd = doc.canvas.createLinearGradient(0, 0, 0, pageHeight);
+        grd.addColorStop(0, '#f0f9f0');  // Verde muy claro
+        grd.addColorStop(1, '#ffffff');  // Blanco
+        
+        doc.setFillColor(grd);
+        doc.rect(0, 0, pageWidth, pageHeight, 'F');
+        doc.restoreGraphicsState();
+      }
+      
+      // Función para añadir un encabezado con estilo
+      function addStyledHeader() {
+        // Banner superior
+        doc.setFillColor('#1a5d1a');  // Verde oscuro para el banner
+        doc.rect(0, 0, pageWidth, 25, 'F');
+        
+        // Título principal con sombra
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor('#ffffff');  // Texto blanco
+        doc.setFontSize(22);
+        doc.text('RefZone - Reporte de Partidos', pageWidth/2, 16, { align: 'center' });
+      }
+      
+      // Añadir fondo y encabezado
+      addGradientBackground();
+      addStyledHeader();
+      
+      // Subtítulo con el nombre de la cancha
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor('#1a5d1a');  // Verde oscuro para el nombre de la cancha
       doc.setFontSize(18);
-      doc.text('RefZone - Reporte de Partidos', pageWidth/2, margin, { align: 'center' });
+      doc.text(reporteData.cancha.nombre, pageWidth/2, margin + 20, { align: 'center' });
       
+      // Período
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(14);
-      doc.text(reporteData.cancha.nombre, pageWidth/2, margin + 10, { align: 'center' });
-      
+      doc.setTextColor('#333333');
       doc.setFontSize(12);
-      doc.text(`${reporteData.periodo.mes} de ${reporteData.periodo.anio}`, pageWidth/2, margin + 18, { align: 'center' });
+      doc.text(`${reporteData.periodo.mes} de ${reporteData.periodo.anio}`, pageWidth/2, margin + 30, { align: 'center' });
       
-      // Agregar información de la cancha
+      // Línea decorativa
+      doc.setDrawColor('#1a5d1a');
+      doc.setLineWidth(0.5);
+      doc.line(margin, margin + 38, pageWidth - margin, margin + 38);
+      
+      // Sección de información de la cancha
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text('Información de la cancha:', margin, margin + 30);
+      doc.setFontSize(12);
+      doc.text('Información de la cancha:', margin, margin + 50);
+      
+      // Cuadro sombreado para la información
+      doc.setFillColor('#f9f9f9');
+      doc.setDrawColor('#cccccc');
+      doc.roundedRect(margin, margin + 55, pageWidth - (margin*2), 35, 3, 3, 'FD');
       
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      doc.text(`Dirección: ${reporteData.cancha.direccion}`, margin, margin + 38);
-      doc.text(`Contacto: ${reporteData.cancha.telefono}`, margin, margin + 46);
-      doc.text(`Email: ${reporteData.cancha.email}`, margin, margin + 54);
+      doc.text(`Dirección: ${reporteData.cancha.direccion}`, margin + 5, margin + 65);
+      doc.text(`Contacto: ${reporteData.cancha.telefono}`, margin + 5, margin + 75);
+      doc.text(`Email: ${reporteData.cancha.email}`, margin + 5, margin + 85);
       
-      // Agregar resumen
+      // Sección de resumen con gráfica
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text('Resumen del período:', margin, margin + 68);
+      doc.setFontSize(12);
+      doc.text('Resumen del período:', margin, margin + 105);
       
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`Total de partidos: ${reporteData.estadisticas.total}`, margin, margin + 76);
-      doc.text(`Partidos con árbitro asignado: ${reporteData.estadisticas.conArbitro}`, margin, margin + 84);
-      doc.text(`Partidos sin árbitro: ${reporteData.estadisticas.sinArbitro}`, margin, margin + 92);
+      // Cuadro para estadísticas con un estilo moderno
+      const statsX = margin;
+      const statsY = margin + 110;
+      const statsWidth = (pageWidth - (margin*2)) / 4;
+      const statsHeight = 40;
       
-      // Agregar tabla de partidos
-      if (reporteData.partidos.length > 0) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.text('Lista de partidos:', margin, margin + 106);
+      // Función para crear una caja de estadística
+      function addStatBox(x, y, width, height, label, value, color) {
+        doc.setFillColor(color);
+        doc.roundedRect(x, y, width - 5, height, 3, 3, 'F');
         
-        // Configuración de tabla
-        let y = margin + 114;
-        const rowHeight = 10;
-        
-        // Encabezados
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.text('Fecha', margin, y);
-        doc.text('Nombre', margin + 30, y);
-        doc.text('Hora', margin + 100, y);
-        doc.text('Árbitro', margin + 130, y);
-        
-        // Línea separadora
-        y += 2;
-        doc.line(margin, y, pageWidth - margin, y);
-        y += 6;
-        
-        // Datos
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
+        doc.setTextColor('#ffffff');
+        doc.text(label, x + width/2 - 2.5, y + 10, { align: 'center' });
         
-        // Formatear fechas
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.text(value.toString(), x + width/2 - 2.5, y + 28, { align: 'center' });
+      }
+      
+      // Añadir cajas de estadísticas
+      addStatBox(statsX, statsY, statsWidth, statsHeight, 'Total de partidos', reporteData.estadisticas.total, '#1a5d1a');
+      addStatBox(statsX + statsWidth, statsY, statsWidth, statsHeight, 'Con árbitro', reporteData.estadisticas.conArbitro, '#4CAF50');
+      addStatBox(statsX + statsWidth*2, statsY, statsWidth, statsHeight, 'Sin árbitro', reporteData.estadisticas.sinArbitro, '#FF9800');
+      
+      // Añadir estado si está disponible
+      const estadosDisponibles = 'programados' in reporteData.estadisticas;
+      if (estadosDisponibles) {
+        addStatBox(statsX + statsWidth*3, statsY, statsWidth, statsHeight, 'Finalizados', 
+          reporteData.estadisticas.finalizados + reporteData.estadisticas.cancelados, '#2196F3');
+      }
+      
+      // Agregar un "QR code" simulado en esquina superior derecha (simple recuadro con texto)
+      doc.setFillColor('#f9f9f9');
+      doc.setDrawColor('#1a5d1a');
+      doc.roundedRect(pageWidth - 60, 35, 45, 45, 3, 3, 'FD');
+      
+      // Marco interior del QR
+      doc.setFillColor('#1a5d1a');
+      doc.setDrawColor('#1a5d1a');
+      doc.rect(pageWidth - 55, 40, 35, 35, 'FD');
+      
+      // Patrón simple de QR (cuadrados blancos)
+      const qrPattern = [
+        [1,1,1,0,1,0,1],
+        [1,0,0,0,1,1,1],
+        [1,0,1,0,0,1,1],
+        [0,0,0,1,0,1,0],
+        [1,1,0,0,1,0,1],
+        [0,1,1,1,0,0,0],
+        [1,1,1,0,1,1,1]
+      ];
+      
+      const cellSize = 5;
+      for (let i = 0; i < qrPattern.length; i++) {
+        for (let j = 0; j < qrPattern[i].length; j++) {
+          if (qrPattern[i][j] === 1) {
+            doc.setFillColor('#ffffff');
+            doc.rect(
+              pageWidth - 55 + j * cellSize, 
+              40 + i * cellSize, 
+              cellSize, 
+              cellSize, 
+              'F'
+            );
+          }
+        }
+      }
+      
+      // Texto debajo del QR
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor('#666666');
+      doc.text('Escanea para más información', pageWidth - 37.5, 83, { align: 'center' });
+      
+      // Tabla de partidos
+      if (reporteData.partidos.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor('#333333');
+        doc.setFontSize(12);
+        doc.text('Lista de partidos:', margin, margin + 165);
+        
+        // Crear tabla con diseño moderno
+        const tableTop = margin + 175;
+        let y = tableTop;
+        
+        // Encabezados de tabla con fondo
+        doc.setFillColor('#1a5d1a');
+        doc.rect(margin, y, pageWidth - margin*2, 12, 'F');
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor('#ffffff');
+        
+        // Columnas
+        const colWidths = [30, 40, 25, 30, 35, 30]; // Fecha, Nombre, Hora, Ubicación, Árbitro, Estado
+        let xPos = margin + 3;
+        
+        doc.text('Fecha', xPos, y + 8);
+        xPos += colWidths[0];
+        
+        doc.text('Nombre', xPos, y + 8);
+        xPos += colWidths[1];
+        
+        doc.text('Hora', xPos, y + 8);
+        xPos += colWidths[2];
+        
+        doc.text('Ubicación', xPos, y + 8);
+        xPos += colWidths[3];
+        
+        doc.text('Árbitro', xPos, y + 8);
+        xPos += colWidths[4];
+        
+        doc.text('Estado', xPos, y + 8);
+        
+        y += 12; // Avanzar a la primera fila de datos
+        
+        // Formatear fechas y horas
         function formatDate(dateStr) {
           try {
             const parts = dateStr.includes('-') 
@@ -616,47 +842,143 @@ export default function DashboardOrganizador() {
           return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
         }
         
+        // Función para determinar el color del estado
+        function getStatusColor(estado) {
+          switch (estado?.toLowerCase()) {
+            case 'programado': return '#4CAF50'; // Verde
+            case 'en curso': return '#2196F3';   // Azul
+            case 'finalizado': return '#607D8B'; // Gris azulado
+            case 'cancelado': return '#F44336';  // Rojo
+            default: return '#9E9E9E';           // Gris (por defecto)
+          }
+        }
+        
+        // Altura de las filas de la tabla
+        const rowHeight = 10;
+        
+        // Dibujar filas de datos
+        doc.setTextColor('#333333');
+        
         for (const partido of reporteData.partidos) {
           // Nueva página si no hay espacio
-          if (y > 250) {
+          if (y > pageHeight - margin - rowHeight) {
             doc.addPage();
-            y = margin;
+            addGradientBackground(); // Mantener el fondo en la nueva página
+            y = margin + 20;
             
             // Encabezados en nueva página
-            doc.setFont('helvetica', 'bold');
-            doc.text('Fecha', margin, y);
-            doc.text('Nombre', margin + 30, y);
-            doc.text('Hora', margin + 100, y);
-            doc.text('Árbitro', margin + 130, y);
+            doc.setFillColor('#1a5d1a');
+            doc.rect(margin, y, pageWidth - margin*2, 12, 'F');
             
-            // Línea separadora
-            y += 2;
-            doc.line(margin, y, pageWidth - margin, y);
-            y += 6;
-            doc.setFont('helvetica', 'normal');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor('#ffffff');
+            
+            // Columnas
+            let xPos = margin + 3;
+            
+            doc.text('Fecha', xPos, y + 8);
+            xPos += 30;
+            
+            doc.text('Nombre', xPos, y + 8);
+            xPos += 40;
+            
+            doc.text('Hora', xPos, y + 8);
+            xPos += 25;
+            
+            doc.text('Ubicación', xPos, y + 8);
+            xPos += 30;
+            
+            doc.text('Árbitro', xPos, y + 8);
+            xPos += 35;
+            
+            doc.text('Estado', xPos, y + 8);
+            
+            y += 12;
           }
           
+          // Alternar colores de fondo para las filas
+          const isEvenRow = reporteData.partidos.indexOf(partido) % 2 === 0;
+          doc.setFillColor(isEvenRow ? '#f9f9f9' : '#ffffff');
+          doc.rect(margin, y, pageWidth - margin*2, rowHeight, 'F');
+          
           // Datos del partido
-          doc.text(formatDate(partido.fecha), margin, y);
-          doc.text(partido.nombre, margin + 30, y);
-          doc.text(formatTime(partido.hora), margin + 100, y);
-          doc.text(partido.arbitro, margin + 130, y);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor('#333333');
+          
+          let xPos = margin + 3;
+          
+          // Fecha
+          doc.text(formatDate(partido.fecha), xPos, y + 6);
+          xPos += 30;
+          
+          // Nombre (truncar si es muy largo)
+          const nombrePartido = partido.nombre?.length > 15 
+            ? partido.nombre.substring(0, 15) + '...' 
+            : partido.nombre || 'Sin nombre';
+          doc.text(nombrePartido, xPos, y + 6);
+          xPos += 40;
+          
+          // Hora
+          doc.text(formatTime(partido.hora), xPos, y + 6);
+          xPos += 25;
+          
+          // Ubicación (truncar si es muy larga)
+          const ubicacion = partido.ubicacion?.length > 12
+            ? partido.ubicacion.substring(0, 12) + '...'
+            : partido.ubicacion || 'Sin ubicación';
+          doc.text(ubicacion, xPos, y + 6);
+          xPos += 30;
+          
+          // Árbitro
+          doc.text(partido.arbitro || 'Sin asignar', xPos, y + 6);
+          xPos += 35;
+          
+          // Estado con color
+          const estado = partido.estado || 'Programado';
+          const statusColor = getStatusColor(estado);
+          
+          // Fondo para el estado
+          doc.setFillColor(statusColor);
+          doc.roundedRect(xPos - 2, y + 1, 25, 7, 1, 1, 'F');
+          
+          doc.setTextColor('#ffffff');
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'bold');
+          doc.text(estado, xPos + 10, y + 6, { align: 'center' });
+          
+          // Restaurar color de texto
+          doc.setTextColor('#333333');
           
           y += rowHeight;
         }
       } else {
         doc.setFont('helvetica', 'italic');
-        doc.setFontSize(10);
-        doc.text('No hay partidos registrados para este período.', margin, margin + 114);
+        doc.setTextColor('#666666');
+        doc.setFontSize(11);
+        doc.text('No hay partidos registrados para este período.', margin, margin + 180);
       }
       
-      // Agregar pie de página
+      // Agregar pie de página con diseño mejorado
       const fechaGeneracion = new Date();
-      const fechaStr = `${fechaGeneracion.getDate()}/${fechaGeneracion.getMonth() + 1}/${fechaGeneracion.getFullYear()} ${fechaGeneracion.getHours()}:${fechaGeneracion.getMinutes()}:${fechaGeneracion.getSeconds()}`;
+      const fechaStr = `${fechaGeneracion.getDate()}/${fechaGeneracion.getMonth() + 1}/${fechaGeneracion.getFullYear()} ${fechaGeneracion.getHours()}:${String(fechaGeneracion.getMinutes()).padStart(2, '0')}:${String(fechaGeneracion.getSeconds()).padStart(2, '0')}`;
       
+      // Línea separadora
+      doc.setDrawColor('#1a5d1a');
+      doc.setLineWidth(0.5);
+      doc.line(margin, pageHeight - 20, pageWidth - margin, pageHeight - 20);
+      
+      // Texto del pie de página
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8);
-      doc.text(`Reporte generado el ${fechaStr}`, pageWidth/2, 285, { align: 'center' });
+      doc.setTextColor('#666666');
+      doc.text(`Reporte generado el ${fechaStr}`, pageWidth/2, pageHeight - 15, { align: 'center' });
+      
+      // Logo o texto de la app
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor('#1a5d1a');
+      doc.text('RefZone - Sistema de Gestión Deportiva', pageWidth/2, pageHeight - 7, { align: 'center' });
       
       // Guardar el PDF con un nombre descriptivo
       try {

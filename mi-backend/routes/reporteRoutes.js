@@ -6,6 +6,7 @@ const es = require('date-fns/locale/es');
 const mongoose = require('mongoose');
 const Game = require('../models/Game');
 const User = require('../models/User');
+const HistorialPartido = require('../models/HistorialPartido');
 const verifyToken = require('../middleware/authMiddleware');
 
 // Para debugging
@@ -55,12 +56,21 @@ router.get('/reporte-datos', verifyToken, async (req, res) => {
         // Convertir mes a formato de 2 dígitos (01, 02, etc.)
         const mesPadded = mesNumero.toString().padStart(2, '0');
         
-        // Encontrar todos los partidos de esa cancha en ese mes y año
-        const partidos = await Game.find({ 
+        // Encontrar todos los partidos activos de esa cancha en ese mes y año
+        const partidosActivos = await Game.find({ 
             canchaId, 
             date: {
                 $regex: new RegExp(`${anioNum}-${mesPadded}|${mesPadded}/${anioNum}|${mesPadded}/${String(anioNum).slice(2)}|${anioNum}/${mesPadded}`)
             }
+        })
+        .populate('arbitro', 'nombre email')
+        .sort({ date: 1, time: 1 });
+
+        // Encontrar todos los partidos históricos de esa cancha en ese mes y año
+        const partidosHistoricos = await HistorialPartido.find({
+            canchaId,
+            mesPartido: mesNumero,
+            anoPartido: anioNum
         })
         .populate('arbitro', 'nombre email')
         .sort({ date: 1, time: 1 });
@@ -70,6 +80,87 @@ router.get('/reporte-datos', verifyToken, async (req, res) => {
         const cancha = await Cancha.findById(canchaId);
         if (!cancha) {
             return res.status(404).json({ message: 'Cancha no encontrada' });
+        }
+        
+        // Combinar partidos activos e históricos
+        const todosPartidos = [
+            ...partidosActivos.map(p => ({
+                id: p._id,
+                nombre: p.name,
+                fecha: p.date,
+                hora: p.time,
+                ubicacion: p.location,
+                cancha: cancha.nombre,
+                arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email) : 'Sin asignar',
+                tieneArbitro: !!p.arbitro,
+                estado: determinarEstadoPartido(p.date, p.time),
+                esHistorial: false
+            })),
+            ...partidosHistoricos.map(p => ({
+                id: p._id,
+                nombre: p.name,
+                fecha: p.date,
+                hora: p.time,
+                ubicacion: p.location,
+                cancha: cancha.nombre,
+                arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email) : 'Sin asignar',
+                tieneArbitro: !!p.arbitro,
+                estado: p.estadoFinal === 'finalizado' ? 'Finalizado' : 'Cancelado',
+                esHistorial: true
+            }))
+        ].sort((a, b) => {
+            // Ordenar por fecha y hora
+            const fechaA = new Date(`${a.fecha}T${a.hora || '00:00'}`);
+            const fechaB = new Date(`${b.fecha}T${b.hora || '00:00'}`);
+            return fechaA - fechaB;
+        });
+        
+        // Función para determinar el estado actual de un partido
+        function determinarEstadoPartido(fechaStr, horaStr) {
+            try {
+                const ahora = new Date();
+                let fechaPartido;
+                
+                // Parsear la fecha del partido
+                if (typeof fechaStr === 'string') {
+                    if (fechaStr.includes('-')) {
+                        // Formato YYYY-MM-DD
+                        fechaPartido = new Date(fechaStr + 'T' + (horaStr || '00:00'));
+                    } else if (fechaStr.includes('/')) {
+                        // Otros formatos de fecha
+                        const partes = fechaStr.split('/');
+                        if (partes.length === 3) {
+                            if (parseInt(partes[0]) > 12) {
+                                // DD/MM/YYYY
+                                fechaPartido = new Date(`${partes[2]}-${partes[1]}-${partes[0]}T${horaStr || '00:00'}`);
+                            } else {
+                                // MM/DD/YYYY
+                                fechaPartido = new Date(`${partes[2]}-${partes[0]}-${partes[1]}T${horaStr || '00:00'}`);
+                            }
+                        }
+                    }
+                }
+                
+                if (!fechaPartido || isNaN(fechaPartido)) {
+                    return 'Programado'; // Si no se puede determinar, asumimos programado
+                }
+                
+                // Calcular diferencia en horas
+                const diferenciaMs = ahora - fechaPartido;
+                const diferenciaHoras = diferenciaMs / (1000 * 60 * 60);
+                
+                // Determinar estado basado en la diferencia de tiempo
+                if (diferenciaHoras < 0) {
+                    return 'Programado';
+                } else if (diferenciaHoras >= 0 && diferenciaHoras <= 1) {
+                    return 'En curso';
+                } else {
+                    return 'Finalizado';
+                }
+            } catch (error) {
+                console.error('Error al determinar estado del partido:', error);
+                return 'Programado';
+            }
         }
         
         // Devolver los datos para el reporte
@@ -84,18 +175,15 @@ router.get('/reporte-datos', verifyToken, async (req, res) => {
                 mes: mes.charAt(0).toUpperCase() + mes.slice(1),
                 anio: anioNum
             },
-            partidos: partidos.map(p => ({
-                id: p._id,
-                nombre: p.name,
-                fecha: p.date,
-                hora: p.time,
-                arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email) : 'Sin asignar',
-                tieneArbitro: !!p.arbitro
-            })),
+            partidos: todosPartidos,
             estadisticas: {
-                total: partidos.length,
-                conArbitro: partidos.filter(p => p.arbitro).length,
-                sinArbitro: partidos.filter(p => !p.arbitro).length
+                total: todosPartidos.length,
+                conArbitro: todosPartidos.filter(p => p.tieneArbitro).length,
+                sinArbitro: todosPartidos.filter(p => !p.tieneArbitro).length,
+                programados: todosPartidos.filter(p => p.estado === 'Programado').length,
+                enCurso: todosPartidos.filter(p => p.estado === 'En curso').length,
+                finalizados: todosPartidos.filter(p => p.estado === 'Finalizado').length,
+                cancelados: todosPartidos.filter(p => p.estado === 'Cancelado').length
             },
             fechaGeneracion: new Date()
         });
