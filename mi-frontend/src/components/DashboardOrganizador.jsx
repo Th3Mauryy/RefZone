@@ -618,37 +618,57 @@ export default function DashboardOrganizador() {
       }
       
       console.log('Iniciando generación del PDF con biblioteca jsPDF...');
-      const doc = new jsPDFClass();
+      let doc;
+      try {
+        doc = new jsPDFClass('p', 'pt', 'a4');
+        console.log('PDF inicializado correctamente');
+      } catch (pdfInitError) {
+        console.error('Error al inicializar jsPDF:', pdfInitError);
+        try {
+          // Intentar con parámetros más simples
+          doc = new jsPDFClass();
+          console.log('PDF inicializado con parámetros por defecto');
+        } catch (fallbackError) {
+          console.error('Error en fallback de jsPDF:', fallbackError);
+          alert('Error al inicializar el generador de PDF. Por favor, intenta con otro navegador.');
+          setReporteModal(prevState => ({ ...prevState, cargando: false }));
+          return;
+        }
+      }
       
       // Configuración de página
       const pageWidth = doc.internal.pageSize.width;
       const pageHeight = doc.internal.pageSize.height;
       const margin = 15;
       
-      // Función para añadir un fondo degradado
+      // Función para añadir un fondo con color sólido 
+      // (reemplazamos el degradado que causaba el error)
       function addGradientBackground() {
-        doc.saveGraphicsState();
-        // Crear degradado de verde claro a blanco
-        const grd = doc.canvas.createLinearGradient(0, 0, 0, pageHeight);
-        grd.addColorStop(0, '#f0f9f0');  // Verde muy claro
-        grd.addColorStop(1, '#ffffff');  // Blanco
-        
-        doc.setFillColor(grd);
+        // Usar color sólido en lugar de degradado
+        doc.setFillColor('#f0f9f0');  // Verde muy claro
         doc.rect(0, 0, pageWidth, pageHeight, 'F');
-        doc.restoreGraphicsState();
       }
       
       // Función para añadir un encabezado con estilo
       function addStyledHeader() {
-        // Banner superior
-        doc.setFillColor('#1a5d1a');  // Verde oscuro para el banner
-        doc.rect(0, 0, pageWidth, 25, 'F');
-        
-        // Título principal con sombra
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor('#ffffff');  // Texto blanco
-        doc.setFontSize(22);
-        doc.text('RefZone - Reporte de Partidos', pageWidth/2, 16, { align: 'center' });
+        try {
+          // Banner superior con color sólido
+          doc.setFillColor(26, 93, 26); // RGB para #1a5d1a (verde oscuro)
+          doc.rect(0, 0, pageWidth, 25, 'F');
+          
+          // Título principal
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(255, 255, 255);  // Blanco en RGB
+          doc.setFontSize(22);
+          doc.text('RefZone - Reporte de Partidos', pageWidth/2, 16, { align: 'center' });
+        } catch (headerError) {
+          console.error("Error en addStyledHeader:", headerError);
+          // Header alternativo simple
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(0, 0, 0);
+          doc.setFontSize(22);
+          doc.text('RefZone - Reporte de Partidos', pageWidth/2, 16, { align: 'center' });
+        }
       }
       
       // Añadir fondo y encabezado
@@ -726,48 +746,26 @@ export default function DashboardOrganizador() {
           reporteData.estadisticas.finalizados + reporteData.estadisticas.cancelados, '#2196F3');
       }
       
-      // Agregar un "QR code" simulado en esquina superior derecha (simple recuadro con texto)
-      doc.setFillColor('#f9f9f9');
-      doc.setDrawColor('#1a5d1a');
-      doc.roundedRect(pageWidth - 60, 35, 45, 45, 3, 3, 'FD');
-      
-      // Marco interior del QR
-      doc.setFillColor('#1a5d1a');
-      doc.setDrawColor('#1a5d1a');
-      doc.rect(pageWidth - 55, 40, 35, 35, 'FD');
-      
-      // Patrón simple de QR (cuadrados blancos)
-      const qrPattern = [
-        [1,1,1,0,1,0,1],
-        [1,0,0,0,1,1,1],
-        [1,0,1,0,0,1,1],
-        [0,0,0,1,0,1,0],
-        [1,1,0,0,1,0,1],
-        [0,1,1,1,0,0,0],
-        [1,1,1,0,1,1,1]
-      ];
-      
-      const cellSize = 5;
-      for (let i = 0; i < qrPattern.length; i++) {
-        for (let j = 0; j < qrPattern[i].length; j++) {
-          if (qrPattern[i][j] === 1) {
-            doc.setFillColor('#ffffff');
-            doc.rect(
-              pageWidth - 55 + j * cellSize, 
-              40 + i * cellSize, 
-              cellSize, 
-              cellSize, 
-              'F'
-            );
-          }
-        }
+      // Agregar una simple insignia de RefZone en lugar del QR code
+      try {
+        // Recuadro simple
+        doc.setFillColor(240, 249, 240); // #f0f9f0
+        doc.setDrawColor(26, 93, 26); // #1a5d1a
+        doc.roundedRect(pageWidth - 60, 35, 45, 25, 3, 3, 'FD');
+        
+        // Texto de la insignia
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(26, 93, 26); // #1a5d1a
+        doc.text('RefZone', pageWidth - 37.5, 48, { align: 'center' });
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6);
+        doc.text('Sistema de Gestión Deportiva', pageWidth - 37.5, 55, { align: 'center' });
+      } catch (badgeError) {
+        console.error("Error al crear insignia:", badgeError);
+        // No hacemos nada si falla, simplemente omitimos la insignia
       }
-      
-      // Texto debajo del QR
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6);
-      doc.setTextColor('#666666');
-      doc.text('Escanea para más información', pageWidth - 37.5, 83, { align: 'center' });
       
       // Tabla de partidos
       if (reporteData.partidos.length > 0) {
@@ -961,24 +959,38 @@ export default function DashboardOrganizador() {
       }
       
       // Agregar pie de página con diseño mejorado
-      const fechaGeneracion = new Date();
-      const fechaStr = `${fechaGeneracion.getDate()}/${fechaGeneracion.getMonth() + 1}/${fechaGeneracion.getFullYear()} ${fechaGeneracion.getHours()}:${String(fechaGeneracion.getMinutes()).padStart(2, '0')}:${String(fechaGeneracion.getSeconds()).padStart(2, '0')}`;
-      
-      // Línea separadora
-      doc.setDrawColor('#1a5d1a');
-      doc.setLineWidth(0.5);
-      doc.line(margin, pageHeight - 20, pageWidth - margin, pageHeight - 20);
-      
-      // Texto del pie de página
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(8);
-      doc.setTextColor('#666666');
-      doc.text(`Reporte generado el ${fechaStr}`, pageWidth/2, pageHeight - 15, { align: 'center' });
-      
-      // Logo o texto de la app
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor('#1a5d1a');
-      doc.text('RefZone - Sistema de Gestión Deportiva', pageWidth/2, pageHeight - 7, { align: 'center' });
+      try {
+        const fechaGeneracion = new Date();
+        const fechaStr = `${fechaGeneracion.getDate()}/${fechaGeneracion.getMonth() + 1}/${fechaGeneracion.getFullYear()} ${fechaGeneracion.getHours()}:${String(fechaGeneracion.getMinutes()).padStart(2, '0')}:${String(fechaGeneracion.getSeconds()).padStart(2, '0')}`;
+        
+        // Línea separadora
+        doc.setDrawColor(26, 93, 26); // #1a5d1a en RGB
+        doc.setLineWidth(0.5);
+        doc.line(margin, pageHeight - 20, pageWidth - margin, pageHeight - 20);
+        
+        // Texto del pie de página
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(102, 102, 102); // #666666 en RGB
+        doc.text(`Reporte generado el ${fechaStr}`, pageWidth/2, pageHeight - 15, { align: 'center' });
+        
+        // Logo o texto de la app
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(26, 93, 26); // #1a5d1a en RGB
+        doc.text('RefZone - Sistema de Gestión Deportiva', pageWidth/2, pageHeight - 7, { align: 'center' });
+      } catch (footerError) {
+        console.error("Error al crear pie de página:", footerError);
+        // Pie de página simplificado si falla el original
+        try {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(0);
+          doc.text(`Reporte generado por RefZone ${new Date().toLocaleDateString()}`, pageWidth/2, pageHeight - 10, { align: 'center' });
+        // eslint-disable-next-line no-unused-vars
+        } catch (error) {
+          // Ignorar si también falla el pie simplificado
+        }
+      }
       
       // Guardar el PDF con un nombre descriptivo
       try {
