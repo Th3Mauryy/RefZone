@@ -1,375 +1,283 @@
-import React, { useEffect, useMemo, useState } from "react";
-
-const initialGame = { name: "", date: "", time: "", location: "" };
+import React, { useState, useEffect, useContext, useMemo } from 'react';
+import AuthContext from '../app/AuthContext';
+import '../styles/dashboardOrganizador.css';
 
 export default function DashboardOrganizador() {
+  const { user, isAuthenticated } = useContext(AuthContext);
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalTitle, setModalTitle] = useState("Agregar Partido");
-  const [currentGame, setCurrentGame] = useState(initialGame);
-  const [editingId, setEditingId] = useState(null);
-
-  const [postuladosModal, setPostuladosModal] = useState({ open: false, postulados: [], gameId: null });
-  const [reporteModal, setReporteModal] = useState({ open: false, mes: new Date().getMonth() + 1, ano: new Date().getFullYear(), cargando: false });
-
-  const [stats, setStats] = useState({ total: 0, upcoming: 0, needsReferee: 0 });
-  const [user, setUser] = useState(null);
-
-  // Verificar sesión
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          console.error("No hay token disponible");
-          window.location.href = "/";
-          return;
-        }
-
-        // Primero intenta verificar la sesión
-        try {
-          const res = await fetch("/api/usuarios/check-session", {
-            headers: { Authorization: `Bearer ${token}` },
-            credentials: "include",
-          });
-          
-          if (res.ok) {
-            const data = await res.json();
-            
-            if (data?.userId) {
-              // Si tiene role organizador o no tiene role, permitir acceso
-              if (data.role === 'organizador') {
-                setUser(data);
-                
-                // Cargar información de la cancha asignada
-                loadCanchaAsignada();
-                return; // Salir si todo está bien
-              } else {
-                console.log("Usuario no es organizador, redirigiendo...");
-                if (data.role === 'arbitro') {
-                  window.location.href = "/dashboard";
-                  return;
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Error en verificación inicial:", error);
-          // Continuar con perfil local si hay error de conexión
-        }
-        
-        // Si llegamos aquí, algo falló en la verificación, pero seguiremos con datos locales
-        const userEmail = localStorage.getItem("userEmail");
-        const userId = localStorage.getItem("userId");
-        
-        if (userId) {
-          console.log("Usando datos de usuario almacenados localmente");
-          setUser({
-            userId: userId,
-            nombre: "Organizador", // Default
-            email: userEmail || "",
-            role: "organizador"
-          });
-          
-          // Intentar cargar la cancha asignada de todos modos
-          loadCanchaAsignada();
-        } else {
-          // Si no hay datos ni en servidor ni local, redirigir a login
-          console.error("No se pudo obtener información del usuario");
-          window.location.href = "/";
-        }
-      } catch (error) {
-        console.error("Error al verificar sesión:", error);
-        // No redirigimos automáticamente para evitar ciclos de redirección
-      }
-    })();
-  }, []);
+  const [gameForm, setGameForm] = useState({ 
+    name: '', 
+    date: '', 
+    time: '', 
+    location: ''
+  });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingGame, setEditingGame] = useState(null);
+  const [viewMode, setViewMode] = useState('tabla');
+  const [statsData, setStatsData] = useState({
+    total: 0,
+    conArbitro: 0,
+    sinArbitro: 0
+  });
   
-  // Función para cargar la cancha asignada al organizador
-  async function loadCanchaAsignada() {
+  const [reporteModal, setReporteModal] = useState({
+    open: false,
+    mes: new Date().getMonth() + 1,
+    ano: new Date().getFullYear(),
+    cargando: false
+  });
+
+  const meses = [
+    { valor: 1, nombre: 'Enero' },
+    { valor: 2, nombre: 'Febrero' },
+    { valor: 3, nombre: 'Marzo' },
+    { valor: 4, nombre: 'Abril' },
+    { valor: 5, nombre: 'Mayo' },
+    { valor: 6, nombre: 'Junio' },
+    { valor: 7, nombre: 'Julio' },
+    { valor: 8, nombre: 'Agosto' },
+    { valor: 9, nombre: 'Septiembre' },
+    { valor: 10, nombre: 'Octubre' },
+    { valor: 11, nombre: 'Noviembre' },
+    { valor: 12, nombre: 'Diciembre' }
+  ];
+
+  const años = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() + i - 2);
+
+  // Cargar partidos
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    fetchGames();
+  }, [isAuthenticated]);
+  
+  // Actualizar estadísticas cuando cambian los partidos
+  useEffect(() => {
+    if (games.length > 0) {
+      const stats = {
+        total: games.length,
+        conArbitro: games.filter(game => game.arbitro).length,
+        sinArbitro: games.filter(game => !game.arbitro).length
+      };
+      setStatsData(stats);
+    }
+  }, [games]);
+
+  // Función para obtener los partidos
+  async function fetchGames() {
+    setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      if (!token) return;
       
-      try {
-        const res = await fetch("/api/canchas/user/assigned", {
-          headers: { Authorization: `Bearer ${token}` },
-          credentials: "include",
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          if (data.hasCancha) {
-            setUser(prev => ({ 
-              ...prev, 
-              canchaAsignada: data.cancha 
-            }));
-          }
-        } else {
-          console.log("No se pudo cargar la cancha, pero continuamos:", await res.text());
-        }
-      } catch (fetchError) {
-        console.error("Error de red al cargar cancha:", fetchError);
-        // Intentar con la ruta sin /api/ como fallback
-        try {
-          const resFallback = await fetch("/canchas/user/assigned", {
-            headers: { Authorization: `Bearer ${token}` },
-            credentials: "include",
-          });
-          
-          if (resFallback.ok) {
-            const data = await resFallback.json();
-            if (data.hasCancha) {
-              setUser(prev => ({ ...prev, canchaAsignada: data.cancha }));
-            }
-          }
-        } catch (fallbackError) {
-          console.error("Error también en fallback de cancha:", fallbackError);
-        }
+      if (!token) {
+        console.error("No hay token disponible");
+        return;
       }
-    } catch (error) {
-      console.error("Error general al cargar cancha asignada:", error);
-      // No hacemos nada crítico, continuamos con la UI
-    }
-  }
-
-  // Cargar datos
-  useEffect(() => {
-    loadGames();
-    loadStats();
-  }, []);
-
-  async function loadStats() {
-    try {
-      const res = await fetch("/api/games/stats", { 
+      
+      const response = await fetch('/api/games/cancha', {
+        method: 'GET',
         headers: {
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        credentials: "include" 
-      });
-      const data = await res.json();
-      setStats({
-        total: Number(data?.total) || 0,
-        upcoming: Number(data?.upcoming) || 0,
-        needsReferee: Number(data?.needsReferee) || 0,
-      });
-    } catch {
-      setStats({ total: 0, upcoming: 0, needsReferee: 0 });
-    }
-  }
-
-  async function loadGames() {
-    setLoading(true);
-    setError("");
-    try {
-      console.log("Cargando partidos para el organizador desde /api/games");
-      const res = await fetch("/api/games", {
-        headers: { 
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        credentials: "include",
+        credentials: 'include'
       });
       
-      if (!res.ok) {
-        throw new Error(`Error al cargar partidos: ${res.status} ${await res.text()}`);
+      if (!response.ok) {
+        throw new Error(`Error al obtener partidos: ${response.status}`);
       }
       
-      const data = await res.json();
-      console.log("Partidos obtenidos para el organizador:", data);
-      
-      // No necesitamos agregar valores predeterminados ya que los organizadores siempre tendrán su cancha asignada
-      setGames(Array.isArray(data) ? data : []);
-    } catch (error) { 
-      console.error("Error al cargar los partidos:", error);
-      setError(`Error al cargar los partidos: ${error.message}`);
-      
-      // Intentar con la ruta sin /api/ como fallback
-      try {
-        console.log("Intentando fallback: /games");
-        const fallbackRes = await fetch("/games", {
-          headers: { 
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: "include",
-        });
-        
-        if (fallbackRes.ok) {
-          const fallbackData = await fallbackRes.json();
-          console.log("Partidos obtenidos desde fallback:", fallbackData);
-          
-          // No necesitamos agregar valores predeterminados ya que los organizadores siempre tendrán su cancha asignada
-          setGames(Array.isArray(fallbackData) ? fallbackData : []);
-          setError(""); // Limpiar error si el fallback fue exitoso
-        }
-      } catch (fallbackError) {
-        console.error("También falló el fallback:", fallbackError);
-        setGames([]);
-      }
+      const data = await response.json();
+      setGames(data);
+      console.log("Partidos cargados:", data.length);
+    } catch (error) {
+      console.error("Error al cargar partidos:", error);
+      alert("Error al cargar los partidos. Por favor, intenta de nuevo más tarde.");
     } finally {
       setLoading(false);
     }
   }
 
-  function openAddModal() {
-    setCurrentGame(initialGame);
-    setEditingId(null);
-    setModalTitle("Agregar Partido");
-    setModalOpen(true);
+  // Función para abrir el modal de crear/editar partido
+  function handleOpenDialog(game = null) {
+    if (game) {
+      setEditingGame(game._id);
+      setGameForm({
+        name: game.name,
+        date: game.date,
+        time: game.time,
+        location: game.location || ''
+      });
+    } else {
+      setEditingGame(null);
+      setGameForm({ 
+        name: '', 
+        date: '', 
+        time: '', 
+        location: ''
+      });
+    }
+    setDialogOpen(true);
   }
 
-  function openEditModal(game) {
-    setCurrentGame({
-      name: game?.name || "",
-      date: game?.date ? String(game.date).split("T")[0] : "",
-      time: game?.time || "",
-      location: game?.location || "",
-    });
-    setEditingId(game?._id || null);
-    setModalTitle("Editar Partido");
-    setModalOpen(true);
+  // Función para manejar los cambios en el formulario
+  function handleInputChange(e) {
+    const { name, value } = e.target;
+    setGameForm(prevState => ({
+      ...prevState,
+      [name]: value
+    }));
   }
 
-  async function handleSave(e) {
+  // Función para crear o editar un partido
+  async function handleSubmit(e) {
     e.preventDefault();
+    
+    // Validar formulario
+    if (!gameForm.name || !gameForm.date || !gameForm.time) {
+      alert("Por favor completa los campos requeridos");
+      return;
+    }
+    
     try {
-      const method = editingId ? "PUT" : "POST";
-      const url = editingId ? `/api/games/${editingId}` : "/api/games";
+      const token = localStorage.getItem("token");
       
-      // Crear una copia del objeto currentGame para modificarlo
-      const gameToSave = { ...currentGame };
-      
-      // Agregar la cancha asignada al usuario si estamos creando un nuevo partido
-      if (!editingId && user?.canchaAsignada?._id) {
-        gameToSave.canchaId = user.canchaAsignada._id;
-        console.log("Añadiendo cancha al partido:", user.canchaAsignada.nombre);
+      if (!token) {
+        alert("No tienes autorización. Por favor inicia sesión nuevamente.");
+        return;
       }
       
-      const res = await fetch(url, {
+      let url = '/api/games';
+      let method = 'POST';
+      
+      if (editingGame) {
+        url = `/api/games/${editingGame}`;
+        method = 'PUT';
+      }
+      
+      const response = await fetch(url, {
         method,
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        credentials: "include",
-        body: JSON.stringify(gameToSave),
+        body: JSON.stringify(gameForm),
+        credentials: 'include'
       });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result?.message || "Error al guardar el partido");
-      setModalOpen(false);
-      setEditingId(null);
-      setCurrentGame(initialGame);
       
-      // Recargar partidos y estadísticas
-      await loadGames();
-      await loadStats();
-    } catch (err) {
-      alert(err.message || "Error al conectar con el servidor");
-    }
-  }
-
-  async function handleDelete(gameId) {
-    if (!window.confirm("¿Eliminar este partido?")) return;
-    try {
-      const res = await fetch(`/api/games/${gameId}`, { 
-        method: "DELETE", 
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        credentials: "include" 
-      });
-      if (!res.ok) throw new Error("Error al eliminar el partido");
+      if (!response.ok) {
+        throw new Error(`Error al ${editingGame ? 'actualizar' : 'crear'} el partido: ${response.status}`);
+      }
       
-      // Recargar partidos y estadísticas
-      await loadGames();
-      await loadStats();
-    } catch (err) {
-      alert(err.message || "Error al conectar con el servidor");
-    }
-  }
-
-  async function openPostulados(gameId) {
-    try {
-      const res = await fetch(`/api/games/${gameId}/postulados`, { 
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        credentials: "include" 
-      });
-      const data = await res.json();
-      setPostuladosModal({ open: true, postulados: data?.postulados || [], gameId });
-    } catch {
-      alert("Error al cargar postulados");
-    }
-  }
-
-  async function assignArbitro(gameId, arbitroId) {
-    try {
-      const res = await fetch(`/api/games/${gameId}/assign`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        credentials: "include",
-        body: JSON.stringify({ arbitroId }),
-      });
-      if (!res.ok) throw new Error("Error al asignar árbitro");
-      setPostuladosModal({ open: false, postulados: [], gameId: null });
-      await loadGames();
-    } catch (err) {
-      alert(err.message || "Error al conectar con el servidor");
-    }
-  }
-
-  function formatDate(input) {
-    if (!input) return "";
-    if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}/.test(input)) {
-      const [y, m, d] = input.split("T")[0].split("-");
-      return `${d}/${m}/${y}`;
-    }
-    const d = new Date(input);
-    return isNaN(d) ? "" : d.toLocaleDateString("es-MX");
-  }
-
-  function formatTime(time) {
-    if (!time) return "";
-    const [hStr, m] = String(time).split(":");
-    const h = parseInt(hStr, 10);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const hour12 = h % 12 || 12;
-    return `${hour12}:${m} ${ampm}`;
-  }
-
-  function logout() {
-    // Intentamos hacer logout en el servidor, pero no bloqueamos si falla
-    try {
-      fetch("/api/usuarios/logout", { 
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        credentials: "include" 
-      }).catch(error => {
-        console.log("Error en logout (no crítico):", error);
-      });
+      // Actualizar la lista de partidos
+      fetchGames();
+      
+      // Cerrar el modal
+      setDialogOpen(false);
+      
     } catch (error) {
-      console.error("Error al intentar logout:", error);
-    } finally {
-      // Siempre limpiamos localStorage y redirigimos
-      console.log("Cerrando sesión y limpiando datos locales");
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("token");
-      localStorage.removeItem("role");
-      localStorage.removeItem("nombre");
-      // Redirigir a la página de login
-      window.location.href = "/";
+      console.error(`Error al ${editingGame ? 'actualizar' : 'crear'} partido:`, error);
+      alert(`Error al ${editingGame ? 'actualizar' : 'crear'} el partido. Por favor, intenta de nuevo.`);
+    }
+  }
+
+  // Función para eliminar un partido
+  async function handleDeleteGame(gameId) {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este partido?")) {
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        alert("No tienes autorización. Por favor inicia sesión nuevamente.");
+        return;
+      }
+      
+      const response = await fetch(`/api/games/${gameId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error al eliminar el partido: ${response.status}`);
+      }
+      
+      // Actualizar la lista de partidos
+      fetchGames();
+      
+    } catch (error) {
+      console.error("Error al eliminar partido:", error);
+      alert("Error al eliminar el partido. Por favor, intenta de nuevo.");
+    }
+  }
+
+  // Función para formatear la fecha
+  function formatDate(dateString) {
+    try {
+      if (typeof dateString !== 'string') return 'Fecha inválida';
+      
+      if (dateString.includes('-')) {
+        const [year, month, day] = dateString.split('-');
+        return `${day?.split('T')[0] || day}/${month}/${year}`;
+      } else if (dateString.includes('/')) {
+        // Si ya está en formato dd/mm/yyyy
+        return dateString;
+      }
+      
+      return dateString;
+    } catch (e) {
+      console.error('Error al formatear fecha:', e);
+      return dateString;
+    }
+  }
+
+  // Función para mostrar el estado del partido (programado, en curso, finalizado)
+  function getEstadoPartido(date, time) {
+    try {
+      const ahora = new Date();
+      let fechaPartido;
+      
+      if (typeof date === 'string') {
+        if (date.includes('-')) {
+          fechaPartido = new Date(date + 'T' + (time || '00:00'));
+        } else if (date.includes('/')) {
+          const partes = date.split('/');
+          if (partes.length === 3) {
+            if (parseInt(partes[0]) > 12) {
+              // Formato DD/MM/YYYY
+              fechaPartido = new Date(`${partes[2]}-${partes[1]}-${partes[0]}T${time || '00:00'}`);
+            } else {
+              // Formato MM/DD/YYYY
+              fechaPartido = new Date(`${partes[2]}-${partes[0]}-${partes[1]}T${time || '00:00'}`);
+            }
+          }
+        }
+      }
+      
+      if (!fechaPartido || isNaN(fechaPartido)) {
+        return { text: 'Programado', color: 'bg-blue-100 text-blue-800' };
+      }
+      
+      const diferenciaMs = ahora - fechaPartido;
+      const diferenciaHoras = diferenciaMs / (1000 * 60 * 60);
+      
+      if (diferenciaHoras < 0) {
+        return { text: 'Programado', color: 'bg-blue-100 text-blue-800' };
+      } else if (diferenciaHoras >= 0 && diferenciaHoras <= 1) {
+        return { text: 'En curso', color: 'bg-yellow-100 text-yellow-800' };
+      } else {
+        return { text: 'Finalizado', color: 'bg-green-100 text-green-800' };
+      }
+    } catch (error) {
+      console.error('Error al determinar estado del partido:', error);
+      return { text: 'Programado', color: 'bg-blue-100 text-blue-800' };
     }
   }
 
@@ -385,630 +293,231 @@ export default function DashboardOrganizador() {
       
       if (!token) {
         alert('No tienes autorización. Por favor inicia sesión nuevamente.');
+        setReporteModal(prevState => ({ ...prevState, cargando: false }));
         return;
       }
       
       // Convertir número del mes a nombre del mes en español
       const mesesNombres = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 
-                          'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+                         'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
       const mesNombre = mesesNombres[mesNumero - 1]; // Restamos 1 porque el arreglo empieza en 0
       
       console.log(`Generando reporte para ${mesNombre} de ${anoReporte}`);
       
-      let partidosFiltrados = [];
-      let reporteDesdeAPI = false;
-      
-      // Intentar obtener datos del servidor primero (incluye historial)
+      // Intentar obtener datos del servidor
+      let reporteData;
       try {
-        const token = localStorage.getItem("token");
-        const url = `/api/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`;
-        
-        console.log('Intentando obtener datos del reporte desde la API:', url);
-        const res = await fetch(url, {
-          headers: { 
-            "Authorization": `Bearer ${token}`
+        console.log(`Intentando obtener datos del reporte desde la API: /api/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`);
+        const response = await fetch(`/api/reportes/reporte-datos?mes=${mesNombre}&anio=${anoReporte}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           },
-          credentials: "include"
+          credentials: 'include'
         });
         
-        if (res.ok) {
-          const dataAPI = await res.json();
-          console.log('Datos del reporte obtenidos desde la API:', dataAPI);
-          
-          // Si obtenemos datos desde la API, ya contienen tanto partidos activos como históricos
-          // con sus estados calculados correctamente
-          if (dataAPI && Array.isArray(dataAPI.partidos)) {
-            partidosFiltrados = dataAPI.partidos;
-            reporteDesdeAPI = true;
-            console.log(`${partidosFiltrados.length} partidos obtenidos desde la API`);
-          }
-        } else {
-          console.log('No se pudieron obtener datos desde la API, error:', await res.text());
+        if (!response.ok) {
+          throw new Error(`Error al obtener datos del reporte: ${response.status}`);
         }
-      } catch (apiError) {
-        console.error('Error al obtener datos de la API:', apiError);
-      }
-      
-      // Si no pudimos obtener datos de la API, filtrar los partidos localmente
-      if (!reporteDesdeAPI) {
-        console.log('Usando datos locales para generar el reporte...');
         
-        // Filtrar partidos por mes y año
-        partidosFiltrados = games.filter(partido => {
-          try {
-            if (typeof partido.date === 'string') {
-              // Intentar extraer el mes y año de la fecha
-              if (partido.date.includes('-')) {
-                // Formato YYYY-MM-DD
-                const [anio, mes] = partido.date.split('-');
-                return parseInt(anio) === anoReporte && parseInt(mes) === mesNumero;
-              } else if (partido.date.includes('/')) {
-                // Formato DD/MM/YYYY o MM/DD/YYYY
-                const partes = partido.date.split('/');
-                if (partes.length === 3) {
-                  // Asumimos DD/MM/YYYY 
-                  if (parseInt(partes[0]) > 12) {
-                    return parseInt(partes[2]) === anoReporte && parseInt(partes[1]) === mesNumero;
-                  } else {
-                    // Formato MM/DD/YYYY
-                    return parseInt(partes[2]) === anoReporte && parseInt(partes[0]) === mesNumero;
+        reporteData = await response.json();
+        console.log('Datos del reporte obtenidos desde la API:', reporteData);
+        console.log(`${reporteData.partidos.length} partidos obtenidos desde la API`);
+        
+      } catch (apiError) {
+        console.error('Error al obtener datos del servidor:', apiError);
+        alert('No se pudo conectar con el servidor para obtener los datos del reporte. Usando datos locales.');
+        
+        // Usar datos locales si falla la API
+        reporteData = {
+          cancha: {
+            nombre: user.canchaAsignada?.nombre || 'Cancha sin nombre',
+            direccion: user.canchaAsignada?.direccion || 'Dirección no disponible',
+            telefono: user.canchaAsignada?.telefono || 'Teléfono no disponible',
+            email: user.canchaAsignada?.email || 'Email no disponible'
+          },
+          periodo: {
+            mes: mesNombre.charAt(0).toUpperCase() + mesNombre.slice(1),
+            anio: anoReporte
+          },
+          partidos: games.filter(p => {
+            // Filtrar por mes y año
+            try {
+              if (typeof p.date === 'string') {
+                if (p.date.includes('-')) {
+                  const [anio, mes] = p.date.split('-');
+                  return parseInt(anio) === anoReporte && parseInt(mes) === mesNumero;
+                } else if (p.date.includes('/')) {
+                  const partes = p.date.split('/');
+                  if (partes.length === 3) {
+                    if (parseInt(partes[0]) > 12) {
+                      return parseInt(partes[2]) === anoReporte && parseInt(partes[1]) === mesNumero;
+                    } else {
+                      return parseInt(partes[2]) === anoReporte && parseInt(partes[0]) === mesNumero;
+                    }
                   }
                 }
               }
+              return false;
+            } catch (error) {
+              console.log('Error al filtrar por fecha:', error);
+              return false;
             }
-            // Si no podemos determinar la fecha, incluimos el partido
-            return true;
-          } catch (e) {
-            console.error('Error al filtrar partido:', e);
-            return true; // Incluir el partido si hay error
-          }
-        });
-      }
-      
-      console.log(`Partidos filtrados para el reporte: ${partidosFiltrados.length}`);
-      
-      // Obtener información de la cancha desde user.canchaAsignada
-      if (!user?.canchaAsignada) {
-        alert('No tienes una cancha asignada. No se puede generar el reporte.');
-        setReporteModal(prevState => ({ ...prevState, cargando: false }));
-        return;
-      }
-      
-      // Crear objeto reporteData manualmente
-      const reporteData = {
-        cancha: {
-          nombre: user.canchaAsignada.nombre || 'Cancha sin nombre',
-          direccion: user.canchaAsignada.direccion || 'Dirección no disponible',
-          telefono: user.canchaAsignada.telefono || 'Teléfono no disponible',
-          email: user.canchaAsignada.email || 'Email no disponible'
-        },
-        periodo: {
-          mes: mesNombre.charAt(0).toUpperCase() + mesNombre.slice(1),
-          anio: anoReporte
-        },
-        partidos: partidosFiltrados.map(p => {
-          // Determinar el estado del partido basado en la fecha y hora
-          let estado = 'Programado';
-          try {
-            const ahora = new Date();
-            let fechaPartido;
-            
-            if (typeof p.date === 'string') {
-              if (p.date.includes('-')) {
-                // Formato YYYY-MM-DD
-                fechaPartido = new Date(p.date + 'T' + (p.time || '00:00'));
-              } else if (p.date.includes('/')) {
-                // Otros formatos de fecha
-                const partes = p.date.split('/');
-                if (partes.length === 3) {
-                  if (parseInt(partes[0]) > 12) {
-                    // DD/MM/YYYY
-                    fechaPartido = new Date(`${partes[2]}-${partes[1]}-${partes[0]}T${p.time || '00:00'}`);
-                  } else {
-                    // MM/DD/YYYY
-                    fechaPartido = new Date(`${partes[2]}-${partes[0]}-${partes[1]}T${p.time || '00:00'}`);
-                  }
-                }
-              }
-            }
-            
-            if (fechaPartido && !isNaN(fechaPartido)) {
-              // Calcular diferencia en horas
-              const diferenciaMs = ahora - fechaPartido;
-              const diferenciaHoras = diferenciaMs / (1000 * 60 * 60);
-              
-              if (diferenciaHoras < 0) {
-                estado = 'Programado';
-              } else if (diferenciaHoras >= 0 && diferenciaHoras <= 2) {
-                estado = 'En curso';
-              } else {
-                estado = 'Finalizado';
-              }
-            }
-          } catch (error) {
-            console.error('Error al determinar estado del partido:', error);
-          }
-          
-          return {
+          }).map(p => ({
             id: p._id,
             nombre: p.name,
             fecha: p.date,
             hora: p.time,
-            ubicacion: p.location || user.canchaAsignada.direccion || 'Sin ubicación',
             arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email || 'Sin nombre') : 'Sin asignar',
             tieneArbitro: !!p.arbitro,
-            estado: p.estado || estado  // Usar estado calculado
-          };
-        }),
-        fechaInicio: `1/${mesNumero}/${anoReporte}`,
-        fechaFin: `${new Date(anoReporte, mesNumero, 0).getDate()}/${mesNumero}/${anoReporte}`,
-        nombreCancha: user.canchaAsignada.nombre || 'Todas',
-        estadisticas: {
-          total: partidosFiltrados.length,
-          conArbitro: partidosFiltrados.filter(p => p.arbitro).length,
-          sinArbitro: partidosFiltrados.filter(p => !p.arbitro).length,
-          programados: partidosFiltrados.filter(p => !p.estado || p.estado === 'Programado').length,
-          enCurso: partidosFiltrados.filter(p => p.estado === 'En curso').length,
-          finalizados: partidosFiltrados.filter(p => p.estado === 'Finalizado').length,
-          cancelados: partidosFiltrados.filter(p => p.estado === 'Cancelado').length
-        },
-        fechaGeneracion: new Date()
-      };
+            ubicacion: p.location || 'No especificada',
+            estado: getEstadoPartido(p.date, p.time).text
+          })),
+          estadisticas: {
+            total: games.length,
+            conArbitro: games.filter(p => p.arbitro).length,
+            sinArbitro: games.filter(p => !p.arbitro).length
+          },
+          fechaGeneracion: new Date()
+        };
+        console.log('Partidos filtrados para el reporte:', reporteData.partidos.length);
+      }
       
-      console.log('Datos del reporte preparados localmente:', reporteData);
       console.log('Datos del reporte obtenidos:', reporteData);
-      
-      // Verificar si la biblioteca jsPDF está disponible
-      console.log('Verificando disponibilidad de jsPDF...');
-      console.log('Estado actual window.jspdf:', typeof window.jspdf);
-      
-      // Intenta usar la versión incluida en el head del documento
-      if (typeof window.jspdf === 'undefined') {
-        console.log('La biblioteca jsPDF no está disponible en window.jspdf, intentando alternativas...');
+
+      // Usamos la función getEstadoPartido que ya existe en el componente
+      // en lugar de definir una nueva función determinarEstadoPartido
+
+    // Verificar si jsPDF está disponible
+    if (typeof window.jsPDF !== 'function') {
+      alert('Error: La biblioteca jsPDF no está disponible');
+      setReporteModal(prevState => ({ ...prevState, cargando: false }));
+      return;
+    }    try {
+      // Generar el PDF - jsPDF está definido globalmente en window.jsPDF por index.html
+      const pdfDoc = new window.jsPDF();        // Título
+        pdfDoc.setFontSize(18);
+        pdfDoc.text('RefZone - Reporte de Partidos', 105, 20, {align: 'center'});
         
-        // Verificar si está disponible como window.jsPDF (mayúsculas)
-        if (typeof window.jsPDF === 'object') {
-          console.log('jsPDF encontrado en window.jsPDF');
-          window.jspdf = window.jsPDF;
-        } else {
-          // Si no, cargarla dinámicamente
-          console.log('Cargando biblioteca jsPDF dinámicamente...');
-          try {
-            const jsPDFScript = document.createElement('script');
-            jsPDFScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-            jsPDFScript.crossOrigin = 'anonymous';
-            document.body.appendChild(jsPDFScript);
-            
-            await new Promise((resolve, reject) => {
-              jsPDFScript.onload = resolve;
-              jsPDFScript.onerror = () => reject(new Error('Error al cargar jsPDF'));
-              setTimeout(() => reject(new Error('Timeout al cargar jsPDF')), 10000);
-            });
-            
-            console.log('jsPDF cargado correctamente');
-          } catch (loadError) {
-            console.error('Error cargando jsPDF:', loadError);
-            alert('No se pudo cargar la biblioteca para generar PDFs.');
-            setReporteModal(prevState => ({ ...prevState, cargando: false }));
-            return;
-          }
-        }
-      }
-      
-      // Último intento para acceder a jsPDF
-      // Algunos CDNs lo exponen como window.jspdf y otros como window.jsPDF
-      const jsPDFClass = window.jspdf?.jsPDF || window.jsPDF || window.jspdf;
-      
-      // También intentar cargar HTML2Canvas para gráficos si está disponible
-      // Esto es opcional, si no está disponible el reporte se generará sin gráficas
-      let html2canvas;
-      try {
-        html2canvas = window.html2canvas;
-        console.log('HTML2Canvas encontrado:', !!html2canvas);
-      // eslint-disable-next-line no-unused-vars
-      } catch (error) {
-        console.log('HTML2Canvas no está disponible, continuando sin gráficos avanzados');
-      }
-      
-      if (!jsPDFClass) {
-        console.error('No se pudo acceder a la clase jsPDF');
-        alert('Error: No se pudo inicializar la biblioteca para generar PDFs');
-        setReporteModal(prevState => ({ ...prevState, cargando: false }));
-        return;
-      }
-      
-      console.log('Iniciando generación del PDF con biblioteca jsPDF...');
-      let doc;
-      try {
-        doc = new jsPDFClass('p', 'pt', 'a4');
-        console.log('PDF inicializado correctamente');
-      } catch (pdfInitError) {
-        console.error('Error al inicializar jsPDF:', pdfInitError);
-        try {
-          // Intentar con parámetros más simples
-          doc = new jsPDFClass();
-          console.log('PDF inicializado con parámetros por defecto');
-        } catch (fallbackError) {
-          console.error('Error en fallback de jsPDF:', fallbackError);
-          alert('Error al inicializar el generador de PDF. Por favor, intenta con otro navegador.');
-          setReporteModal(prevState => ({ ...prevState, cargando: false }));
-          return;
-        }
-      }
-      
-      // Configuración de página
-      const pageWidth = doc.internal.pageSize.width;
-      const pageHeight = doc.internal.pageSize.height;
-      const margin = 15;
-      
-      // Función para añadir un fondo con color sólido 
-      // (reemplazamos el degradado que causaba el error)
-      function addGradientBackground() {
-        // Usar color sólido en lugar de degradado
-        doc.setFillColor('#f0f9f0');  // Verde muy claro
-        doc.rect(0, 0, pageWidth, pageHeight, 'F');
-      }
-      
-      // Función para añadir un encabezado con estilo
-      function addStyledHeader() {
-        try {
-          // Banner superior con color sólido
-          doc.setFillColor(26, 93, 26); // RGB para #1a5d1a (verde oscuro)
-          doc.rect(0, 0, pageWidth, 25, 'F');
+        // Nombre de la cancha
+        pdfDoc.setFontSize(14);
+        pdfDoc.text(`Cancha: ${reporteData.cancha.nombre}`, 105, 30, {align: 'center'});
+        
+        // Período
+        pdfDoc.setFontSize(12);
+        pdfDoc.text(`Periodo: ${reporteData.periodo.mes} de ${reporteData.periodo.anio}`, 105, 40, {align: 'center'});
+        
+        // Información de contacto
+        pdfDoc.setFontSize(10);
+        pdfDoc.text(`Dirección: ${reporteData.cancha.direccion}`, 20, 55);
+        pdfDoc.text(`Contacto: ${reporteData.cancha.telefono}`, 20, 62);
+        pdfDoc.text(`Email: ${reporteData.cancha.email}`, 20, 69);
+        
+        // Línea divisoria
+        pdfDoc.line(20, 75, 190, 75);
+        
+        // Estadísticas
+        pdfDoc.setFontSize(12);
+        pdfDoc.text('Resumen:', 20, 85);
+        pdfDoc.setFontSize(10);
+        pdfDoc.text(`Total de partidos: ${reporteData.estadisticas.total}`, 25, 95);
+        pdfDoc.text(`Con árbitro: ${reporteData.estadisticas.conArbitro}`, 25, 102);
+        pdfDoc.text(`Sin árbitro: ${reporteData.estadisticas.sinArbitro}`, 25, 109);
+        
+        // Lista de partidos
+        if (reporteData.partidos.length > 0) {
+          pdfDoc.text('Lista de partidos:', 20, 120);
           
-          // Título principal
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(255, 255, 255);  // Blanco en RGB
-          doc.setFontSize(22);
-          doc.text('RefZone - Reporte de Partidos', pageWidth/2, 16, { align: 'center' });
-        } catch (headerError) {
-          console.error("Error en addStyledHeader:", headerError);
-          // Header alternativo simple
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(0, 0, 0);
-          doc.setFontSize(22);
-          doc.text('RefZone - Reporte de Partidos', pageWidth/2, 16, { align: 'center' });
-        }
-      }
-      
-      // Añadir fondo y encabezado
-      addGradientBackground();
-      addStyledHeader();
-      
-      // Subtítulo con el nombre de la cancha
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor('#1a5d1a');  // Verde oscuro para el nombre de la cancha
-      doc.setFontSize(18);
-      doc.text(reporteData.cancha.nombre, pageWidth/2, margin + 20, { align: 'center' });
-      
-      // Período
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor('#333333');
-      doc.setFontSize(12);
-      doc.text(`${reporteData.periodo.mes} de ${reporteData.periodo.anio}`, pageWidth/2, margin + 30, { align: 'center' });
-      
-      // Línea decorativa
-      doc.setDrawColor('#1a5d1a');
-      doc.setLineWidth(0.5);
-      doc.line(margin, margin + 38, pageWidth - margin, margin + 38);
-      
-      // Sección de información de la cancha
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text('Información de la cancha:', margin, margin + 50);
-      
-      // Cuadro sombreado para la información
-      doc.setFillColor('#f9f9f9');
-      doc.setDrawColor('#cccccc');
-      doc.roundedRect(margin, margin + 55, pageWidth - (margin*2), 35, 3, 3, 'FD');
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`Dirección: ${reporteData.cancha.direccion}`, margin + 5, margin + 65);
-      doc.text(`Contacto: ${reporteData.cancha.telefono}`, margin + 5, margin + 75);
-      doc.text(`Email: ${reporteData.cancha.email}`, margin + 5, margin + 85);
-      
-      // Sección de resumen con gráfica
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text('Resumen del período:', margin, margin + 105);
-      
-      // Cuadro para estadísticas con un estilo moderno
-      const statsX = margin;
-      const statsY = margin + 110;
-      const statsWidth = (pageWidth - (margin*2)) / 4;
-      const statsHeight = 40;
-      
-      // Función para crear una caja de estadística
-      function addStatBox(x, y, width, height, label, value, color) {
-        doc.setFillColor(color);
-        doc.roundedRect(x, y, width - 5, height, 3, 3, 'F');
-        
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor('#ffffff');
-        doc.text(label, x + width/2 - 2.5, y + 10, { align: 'center' });
-        
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        doc.text(value.toString(), x + width/2 - 2.5, y + 28, { align: 'center' });
-      }
-      
-      // Añadir cajas de estadísticas
-      addStatBox(statsX, statsY, statsWidth, statsHeight, 'Total de partidos', reporteData.estadisticas.total, '#1a5d1a');
-      addStatBox(statsX + statsWidth, statsY, statsWidth, statsHeight, 'Con árbitro', reporteData.estadisticas.conArbitro, '#4CAF50');
-      addStatBox(statsX + statsWidth*2, statsY, statsWidth, statsHeight, 'Sin árbitro', reporteData.estadisticas.sinArbitro, '#FF9800');
-      
-      // Añadir estado si está disponible
-      const estadosDisponibles = 'programados' in reporteData.estadisticas;
-      if (estadosDisponibles) {
-        addStatBox(statsX + statsWidth*3, statsY, statsWidth, statsHeight, 'Finalizados', 
-          reporteData.estadisticas.finalizados + reporteData.estadisticas.cancelados, '#2196F3');
-      }
-      
-      // Agregar una simple insignia de RefZone en lugar del QR code
-      try {
-        // Recuadro simple
-        doc.setFillColor(240, 249, 240); // #f0f9f0
-        doc.setDrawColor(26, 93, 26); // #1a5d1a
-        doc.roundedRect(pageWidth - 60, 35, 45, 25, 3, 3, 'FD');
-        
-        // Texto de la insignia
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.setTextColor(26, 93, 26); // #1a5d1a
-        doc.text('RefZone', pageWidth - 37.5, 48, { align: 'center' });
-        
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6);
-        doc.text('Sistema de Gestión Deportiva', pageWidth - 37.5, 55, { align: 'center' });
-      } catch (badgeError) {
-        console.error("Error al crear insignia:", badgeError);
-        // No hacemos nada si falla, simplemente omitimos la insignia
-      }
-      
-      // Tabla de partidos
-      if (reporteData.partidos.length > 0) {
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor('#333333');
-        doc.setFontSize(12);
-        doc.text('Lista de partidos:', margin, margin + 165);
-        
-        // Crear tabla con diseño moderno
-        const tableTop = margin + 175;
-        let y = tableTop;
-        
-        // Encabezados de tabla con fondo
-        doc.setFillColor('#1a5d1a');
-        doc.rect(margin, y, pageWidth - margin*2, 12, 'F');
-        
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor('#ffffff');
-        
-        // Columnas
-        const colWidths = [30, 40, 25, 30, 35, 30]; // Fecha, Nombre, Hora, Ubicación, Árbitro, Estado
-        let xPos = margin + 3;
-        
-        doc.text('Fecha', xPos, y + 8);
-        xPos += colWidths[0];
-        
-        doc.text('Nombre', xPos, y + 8);
-        xPos += colWidths[1];
-        
-        doc.text('Hora', xPos, y + 8);
-        xPos += colWidths[2];
-        
-        doc.text('Ubicación', xPos, y + 8);
-        xPos += colWidths[3];
-        
-        doc.text('Árbitro', xPos, y + 8);
-        xPos += colWidths[4];
-        
-        doc.text('Estado', xPos, y + 8);
-        
-        y += 12; // Avanzar a la primera fila de datos
-        
-        // Formatear fechas y horas
-        function formatDate(dateStr) {
-          try {
-            const parts = dateStr.includes('-') 
-              ? dateStr.split('-') 
-              : dateStr.split('/');
+          // Encabezados de tabla
+          pdfDoc.setFontSize(9);
+          pdfDoc.text('Fecha', 20, 130);
+          pdfDoc.text('Nombre', 50, 130);
+          pdfDoc.text('Hora', 100, 130);
+          pdfDoc.text('Árbitro', 120, 130);
+          pdfDoc.text('Estado', 170, 130);
+          
+          // Línea debajo de encabezados
+          pdfDoc.line(20, 132, 190, 132);
+          
+          // Datos de partidos
+          pdfDoc.setFontSize(8);
+          let y = 140;
+          const rowHeight = 7;
+          
+          for (let i = 0; i < reporteData.partidos.length; i++) {
+            const partido = reporteData.partidos[i];
             
-            if (parts.length === 3) {
-              // Asumimos YYYY-MM-DD o DD/MM/YYYY
-              if (dateStr.includes('-')) {
-                return `${parts[2].split('T')[0]}/${parts[1]}/${parts[0]}`;
-              } else {
-                return dateStr;
-              }
+            // Verificar si necesitamos una nueva página
+            if (y > 270) {
+              pdfDoc.addPage();
+              y = 20;
+              
+              // Repetir encabezados
+              pdfDoc.setFontSize(9);
+              pdfDoc.text('Fecha', 20, y);
+              pdfDoc.text('Nombre', 50, y);
+              pdfDoc.text('Hora', 100, y);
+              pdfDoc.text('Árbitro', 120, y);
+              pdfDoc.text('Estado', 170, y);
+              
+              pdfDoc.line(20, y + 2, 190, y + 2);
+              y += 10;
+              pdfDoc.setFontSize(8);
             }
-            return dateStr;
-          // eslint-disable-next-line no-unused-vars
-          } catch (_) {
-            // Ignorar errores y devolver la cadena original
-            return dateStr;
+            
+            // Formatear fecha
+            let fechaFormateada = partido.fecha;
+            try {
+              if (typeof partido.fecha === 'string') {
+                if (partido.fecha.includes('-')) {
+                  const [anio, mes, dia] = partido.fecha.split('-');
+                  fechaFormateada = `${dia.split('T')[0]}/${mes}/${anio}`;
+                }
+              }
+            } catch (formatError) {
+              // Usar la fecha sin formatear
+              console.log('Error al formatear fecha:', formatError);
+            }
+            
+            // Imprimir datos
+            pdfDoc.text(fechaFormateada, 20, y);
+            pdfDoc.text(partido.nombre?.substring(0, 25) || 'Sin nombre', 50, y);
+            pdfDoc.text(partido.hora || '', 100, y);
+            pdfDoc.text(partido.arbitro?.substring(0, 20) || 'Sin asignar', 120, y);
+            pdfDoc.text(partido.estado || 'Programado', 170, y);
+            
+            y += rowHeight;
           }
+        } else {
+          pdfDoc.setFontSize(11);
+          pdfDoc.text('No hay partidos registrados para este período.', 20, 130);
         }
         
-        // Función para formatear hora
-        function formatTime(time) {
-          if (!time) return '';
-          const [h, m] = time.split(':');
-          const hour = parseInt(h);
-          return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
-        }
-        
-        // Función para determinar el color del estado
-        function getStatusColor(estado) {
-          switch (estado?.toLowerCase()) {
-            case 'programado': return '#4CAF50'; // Verde
-            case 'en curso': return '#2196F3';   // Azul
-            case 'finalizado': return '#607D8B'; // Gris azulado
-            case 'cancelado': return '#F44336';  // Rojo
-            default: return '#9E9E9E';           // Gris (por defecto)
-          }
-        }
-        
-        // Altura de las filas de la tabla
-        const rowHeight = 10;
-        
-        // Dibujar filas de datos
-        doc.setTextColor('#333333');
-        
-        for (const partido of reporteData.partidos) {
-          // Nueva página si no hay espacio
-          if (y > pageHeight - margin - rowHeight) {
-            doc.addPage();
-            addGradientBackground(); // Mantener el fondo en la nueva página
-            y = margin + 20;
-            
-            // Encabezados en nueva página
-            doc.setFillColor('#1a5d1a');
-            doc.rect(margin, y, pageWidth - margin*2, 12, 'F');
-            
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.setTextColor('#ffffff');
-            
-            // Columnas
-            let xPos = margin + 3;
-            
-            doc.text('Fecha', xPos, y + 8);
-            xPos += 30;
-            
-            doc.text('Nombre', xPos, y + 8);
-            xPos += 40;
-            
-            doc.text('Hora', xPos, y + 8);
-            xPos += 25;
-            
-            doc.text('Ubicación', xPos, y + 8);
-            xPos += 30;
-            
-            doc.text('Árbitro', xPos, y + 8);
-            xPos += 35;
-            
-            doc.text('Estado', xPos, y + 8);
-            
-            y += 12;
-          }
-          
-          // Alternar colores de fondo para las filas
-          const isEvenRow = reporteData.partidos.indexOf(partido) % 2 === 0;
-          doc.setFillColor(isEvenRow ? '#f9f9f9' : '#ffffff');
-          doc.rect(margin, y, pageWidth - margin*2, rowHeight, 'F');
-          
-          // Datos del partido
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor('#333333');
-          
-          let xPos = margin + 3;
-          
-          // Fecha
-          doc.text(formatDate(partido.fecha), xPos, y + 6);
-          xPos += 30;
-          
-          // Nombre (truncar si es muy largo)
-          const nombrePartido = partido.nombre?.length > 15 
-            ? partido.nombre.substring(0, 15) + '...' 
-            : partido.nombre || 'Sin nombre';
-          doc.text(nombrePartido, xPos, y + 6);
-          xPos += 40;
-          
-          // Hora
-          doc.text(formatTime(partido.hora), xPos, y + 6);
-          xPos += 25;
-          
-          // Ubicación (truncar si es muy larga)
-          const ubicacion = partido.ubicacion?.length > 12
-            ? partido.ubicacion.substring(0, 12) + '...'
-            : partido.ubicacion || 'Sin ubicación';
-          doc.text(ubicacion, xPos, y + 6);
-          xPos += 30;
-          
-          // Árbitro
-          doc.text(partido.arbitro || 'Sin asignar', xPos, y + 6);
-          xPos += 35;
-          
-          // Estado con color
-          const estado = partido.estado || 'Programado';
-          const statusColor = getStatusColor(estado);
-          
-          // Fondo para el estado
-          doc.setFillColor(statusColor);
-          doc.roundedRect(xPos - 2, y + 1, 25, 7, 1, 1, 'F');
-          
-          doc.setTextColor('#ffffff');
-          doc.setFontSize(7);
-          doc.setFont('helvetica', 'bold');
-          doc.text(estado, xPos + 10, y + 6, { align: 'center' });
-          
-          // Restaurar color de texto
-          doc.setTextColor('#333333');
-          
-          y += rowHeight;
-        }
-      } else {
-        doc.setFont('helvetica', 'italic');
-        doc.setTextColor('#666666');
-        doc.setFontSize(11);
-        doc.text('No hay partidos registrados para este período.', margin, margin + 180);
-      }
-      
-      // Agregar pie de página con diseño mejorado
-      try {
+        // Pie de página
+        pdfDoc.setFontSize(8);
         const fechaGeneracion = new Date();
-        const fechaStr = `${fechaGeneracion.getDate()}/${fechaGeneracion.getMonth() + 1}/${fechaGeneracion.getFullYear()} ${fechaGeneracion.getHours()}:${String(fechaGeneracion.getMinutes()).padStart(2, '0')}:${String(fechaGeneracion.getSeconds()).padStart(2, '0')}`;
+        pdfDoc.text(
+          `Generado el ${fechaGeneracion.getDate()}/${fechaGeneracion.getMonth() + 1}/${fechaGeneracion.getFullYear()} a las ${fechaGeneracion.getHours()}:${String(fechaGeneracion.getMinutes()).padStart(2, '0')}`,
+          105, 
+          280, 
+          {align: 'center'}
+        );
         
-        // Línea separadora
-        doc.setDrawColor(26, 93, 26); // #1a5d1a en RGB
-        doc.setLineWidth(0.5);
-        doc.line(margin, pageHeight - 20, pageWidth - margin, pageHeight - 20);
-        
-        // Texto del pie de página
-        doc.setFont('helvetica', 'italic');
-        doc.setFontSize(8);
-        doc.setTextColor(102, 102, 102); // #666666 en RGB
-        doc.text(`Reporte generado el ${fechaStr}`, pageWidth/2, pageHeight - 15, { align: 'center' });
-        
-        // Logo o texto de la app
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(26, 93, 26); // #1a5d1a en RGB
-        doc.text('RefZone - Sistema de Gestión Deportiva', pageWidth/2, pageHeight - 7, { align: 'center' });
-      } catch (footerError) {
-        console.error("Error al crear pie de página:", footerError);
-        // Pie de página simplificado si falla el original
-        try {
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(0);
-          doc.text(`Reporte generado por RefZone ${new Date().toLocaleDateString()}`, pageWidth/2, pageHeight - 10, { align: 'center' });
-        // eslint-disable-next-line no-unused-vars
-        } catch (error) {
-          // Ignorar si también falla el pie simplificado
-        }
-      }
-      
-      // Guardar el PDF con un nombre descriptivo
-      try {
-        const nombreArchivo = `reporte-partidos-${reporteData.cancha.nombre.replace(/\s+/g, '-')}-${mesNombre}-${anoReporte}.pdf`;
-        doc.save(nombreArchivo);
+        // Guardar PDF
+        pdfDoc.save(`reporte-partidos-${reporteData.cancha.nombre.replace(/\s+/g, '-')}-${mesNombre}-${anoReporte}.pdf`);
         
         // Cerrar modal
         setReporteModal(prevState => ({ ...prevState, open: false, cargando: false }));
         
-        console.log('Reporte PDF generado correctamente');
       } catch (pdfError) {
-        console.error('Error al guardar PDF:', pdfError);
-        alert('Error al guardar el PDF. Verifica los permisos de tu navegador e inténtalo de nuevo.');
+        console.error('Error al generar PDF:', pdfError);
+        alert(`Error al generar el PDF: ${pdfError.message}`);
         setReporteModal(prevState => ({ ...prevState, cargando: false }));
       }
     } catch (error) {
       console.error('Error al generar reporte:', error);
-      alert(`Error al generar el reporte: ${error.message || 'Error desconocido'}. Inténtalo de nuevo.`);
+      alert(`Error al generar el reporte: ${error.message || 'Error desconocido'}`);
       setReporteModal(prevState => ({ ...prevState, cargando: false }));
     }
   }
@@ -1045,549 +554,436 @@ export default function DashboardOrganizador() {
                 </div>
               </div>
             </div>
-
-            {/* User Profile */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-secondary rounded-full flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
-                  </svg>
-                </div>
-                <div className="hidden md:block">
-                  <p className="text-sm font-medium text-gray-800">{user?.name || "Administrador"}</p>
-                  <p className="text-xs text-gray-600">Organizador Principal</p>
-                </div>
-              </div>
+            
+            {/* Actions */}
+            <div className="flex items-center space-x-2">
               <button 
-                onClick={logout}
-                className="btn btn-ghost btn-sm"
+                onClick={() => setReporteModal(prevState => ({ ...prevState, open: true }))}
+                className="btn-outline-secondary flex items-center"
               >
-                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd"/>
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Salir
+                Generar Reporte
+              </button>
+              <button 
+                onClick={() => handleOpenDialog()}
+                className="btn-primary"
+              >
+                Crear Partido
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto py-8">
-        {/* Page Header */}
-        <div className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-3xl font-display font-bold text-gray-800 mb-2">Gestión de Partidos</h2>
-              <p className="text-gray-600">Administra los partidos de fútbol 7 y asigna árbitros</p>
-            </div>
-            <div className="mt-4 md:mt-0">
-              <div className="flex space-x-3">
-                <button 
-                  onClick={() => setReporteModal({ ...reporteModal, open: true })}
-                  className="btn btn-secondary"
-                >
-                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
-                  </svg>
-                  Historial de Partidos
-                </button>
-                <button 
-                  onClick={openAddModal}
-                  className="btn btn-primary"
-                >
-                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
-                  </svg>
-                  Agregar Partido
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
+      <main className="container mx-auto py-8 px-4">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="card">
-            <div className="card-body">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total de Partidos</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="stat-card bg-white">
+            <div className="stat-card-value">{statsData.total}</div>
+            <div className="stat-card-title">Total Partidos</div>
+            <div className="stat-card-icon bg-blue-50 text-blue-500">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
             </div>
           </div>
-
-          <div className="card">
-            <div className="card-body">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Próximos Partidos</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.upcoming}</p>
-                </div>
-              </div>
+          <div className="stat-card bg-white">
+            <div className="stat-card-value">{statsData.conArbitro}</div>
+            <div className="stat-card-title">Con Árbitro</div>
+            <div className="stat-card-icon bg-green-50 text-green-500">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
           </div>
-
-          <div className="card">
-            <div className="card-body">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Sin Árbitro</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.needsReferee}</p>
-                </div>
-              </div>
+          <div className="stat-card bg-white">
+            <div className="stat-card-value">{statsData.sinArbitro}</div>
+            <div className="stat-card-title">Sin Árbitro</div>
+            <div className="stat-card-icon bg-yellow-50 text-yellow-500">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+          </div>
+          <div className="stat-card bg-white">
+            <div className="stat-card-value">
+              {Math.round((statsData.conArbitro / (statsData.total || 1)) * 100)}%
+            </div>
+            <div className="stat-card-title">Asignación</div>
+            <div className="stat-card-icon bg-indigo-50 text-indigo-500">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
             </div>
           </div>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="alert alert-error mb-6">
-            <svg className="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+        {/* View Toggle */}
+        <div className="flex justify-end mb-4">
+          <div className="flex bg-white rounded-lg border border-gray-200 p-1">
+            <button 
+              onClick={() => setViewMode('tabla')}
+              className={`px-3 py-1 rounded-md ${viewMode === 'tabla' ? 'bg-primary text-white' : 'text-gray-600'}`}
+            >
+              <svg className="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
+            <button 
+              onClick={() => setViewMode('lista')}
+              className={`px-3 py-1 rounded-md ${viewMode === 'lista' ? 'bg-primary text-white' : 'text-gray-600'}`}
+            >
+              <svg className="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+            </button>
+            <button 
+              onClick={() => setViewMode('calendario')}
+              className={`px-3 py-1 rounded-md ${viewMode === 'calendario' ? 'bg-primary text-white' : 'text-gray-600'}`}
+            >
+              <svg className="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Games List or Table */}
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="spinner"></div>
+          </div>
+        ) : !hasGames ? (
+          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+            <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            {error}
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">No tienes partidos registrados</h2>
+            <p className="text-gray-600 mb-4">Crea tu primer partido para comenzar a gestionarlo</p>
+            <button 
+              onClick={() => handleOpenDialog()}
+              className="btn-primary"
+            >
+              Crear Primer Partido
+            </button>
           </div>
-        )}
-
-        {/* Loading Skeleton */}
-        {loading && (
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="card animate-pulse">
-                <div className="card-body">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Games Table */}
-        {!loading && (
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-display font-semibold text-gray-800">Lista de Partidos</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                {hasGames ? `${games.length} partidos registrados` : 'No hay partidos registrados'}
-              </p>
-            </div>
-            <div className="card-body p-0">
-              {!hasGames ? (
-                <div className="p-12 text-center">
-                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-                  </svg>
-                  <h4 className="text-lg font-medium text-gray-800 mb-2">No hay partidos registrados</h4>
-                  <p className="text-gray-600 mb-4">Comienza agregando tu primer partido de fútbol 7</p>
-                  <button 
-                    onClick={openAddModal}
-                    className="btn btn-primary"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
-                    </svg>
-                    Agregar Primer Partido
-                  </button>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Fecha y Hora</th>
-                        <th>Nombre del Partido</th>
-                        <th>Ubicación</th>
-                        <th>Cancha</th>
-                        <th>Árbitro Asignado</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedGames.map((game) => (
-                        <tr key={game._id} className="hover:bg-gray-50 transition-colors duration-150">
-                          <td>
-                            <div className="flex flex-col">
-                              <span className="font-medium text-gray-900">{formatDate(game.date)}</span>
-                              <span className="badge badge-primary text-xs">{formatTime(game.time)}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-                                </svg>
+        ) : viewMode === 'tabla' ? (
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Árbitro</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {sortedGames.map((game) => {
+                    const estado = getEstadoPartido(game.date, game.time);
+                    
+                    return (
+                      <tr key={game._id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{game.name}</div>
+                          {game.location && (
+                            <div className="text-xs text-gray-500">{game.location}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{formatDate(game.date)}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{game.time}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {game.arbitro ? (
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-8 w-8">
+                                <img 
+                                  className="h-8 w-8 rounded-full" 
+                                  src={game.arbitro.fotoPerfil || "/img-perfil/perfil1.png"} 
+                                  alt="" 
+                                />
                               </div>
-                              <span className="font-medium text-gray-900">{game.name}</span>
+                              <div className="ml-3">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {game.arbitro.nombre || game.arbitro.email}
+                                </div>
+                              </div>
                             </div>
-                          </td>
-                          <td>
-                            <div className="flex items-center space-x-2">
-                              <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
-                              </svg>
-                              <span className="text-gray-700">{game.location}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="flex items-center space-x-2">
-                              <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8c0 .817-.665 1.5-1.5 1.5a.5.5 0 00-.5.5v2a.5.5 0 00.5.5h2a.5.5 0 00.5-.5V12a.5.5 0 00-.5-.5 1.5 1.5 0 01-1.5-1.5V9c0-.817.665-1.5 1.5-1.5h1c.828 0 1.5-.672 1.5-1.5S11.328 4.5 10.5 4.5H10c-.828 0-1.5.672-1.5 1.5v1a.5.5 0 01-.5.5 2.5 2.5 0 00-2.5 2.5c0 .664.193 1.321.57 1.881.74 1.096 1.934 1.759 3.43 1.759 1.6 0 3-1.9 3-3.5" clipRule="evenodd"/>
-                              </svg>
-                              <span className="text-blue-700">
-                                {game.canchaId && game.canchaId.nombre ? game.canchaId.nombre : "No disponible"}
-                              </span>
-                            </div>
-                          </td>
-                          <td>
-                            {game.arbitro ? (
-                              <span className="badge badge-success">
-                                {game.arbitro.nombre || game.arbitro.email}
-                              </span>
-                            ) : (
-                              <span className="badge badge-warning">Sin asignar</span>
-                            )}
-                          </td>
-                          <td>
-                            <div className="flex items-center space-x-2">
-                              <button 
-                                className="btn btn-sm btn-outline" 
-                                onClick={() => openEditModal(game)}
-                              >
-                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-                                </svg>
-                                Editar
-                              </button>
-                              
-                              <button 
-                                className="btn btn-sm btn-danger" 
-                                onClick={() => handleDelete(game._id)}
-                              >
-                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd"/>
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 012 0v4a1 1 0 11-2 0V7zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V7a1 1 0 00-1-1z" clipRule="evenodd"/>
-                                </svg>
-                                Eliminar
-                              </button>
-                              
-                              {!game.arbitro && (
-                                <button 
-                                  className="btn btn-sm btn-secondary" 
-                                  onClick={() => openPostulados(game._id)}
-                                >
-                                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9 12a1 1 0 000 2h2a1 1 0 100-2H9zm-4-7a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1V6a1 1 0 00-1-1H5zm0 2v8h10V7H5z"/>
-                                  </svg>
-                                  Ver Postulados
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                          ) : (
+                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              Sin asignar
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${estado.color}`}>
+                            {estado.text}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button 
+                            onClick={() => handleOpenDialog(game)} 
+                            className="text-indigo-600 hover:text-indigo-900 mr-3"
+                          >
+                            Editar
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteGame(game._id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Eliminar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
+          </div>
+        ) : viewMode === 'lista' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {sortedGames.map((game) => {
+              const estado = getEstadoPartido(game.date, game.time);
+              
+              return (
+                <div key={game._id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800">{game.name}</h3>
+                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${estado.color}`}>
+                      {estado.text}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-start">
+                      <svg className="w-4 h-4 text-gray-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <div>
+                        <p className="text-sm text-gray-900">{formatDate(game.date)}</p>
+                        <p className="text-sm text-gray-500">{game.time}</p>
+                      </div>
+                    </div>
+                    
+                    {game.location && (
+                      <div className="flex items-start">
+                        <svg className="w-4 h-4 text-gray-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <p className="text-sm text-gray-900">{game.location}</p>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-start">
+                      <svg className="w-4 h-4 text-gray-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <div>
+                        {game.arbitro ? (
+                          <div className="flex items-center">
+                            <img 
+                              className="h-6 w-6 rounded-full mr-2" 
+                              src={game.arbitro.fotoPerfil || "/img-perfil/perfil1.png"} 
+                              alt="" 
+                            />
+                            <p className="text-sm text-gray-900">{game.arbitro.nombre || game.arbitro.email}</p>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-yellow-600">Sin árbitro asignado</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end space-x-2 pt-3 border-t border-gray-100">
+                    <button 
+                      onClick={() => handleOpenDialog(game)} 
+                      className="btn-text-primary text-sm"
+                    >
+                      Editar
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteGame(game._id)}
+                      className="btn-text-danger text-sm"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <p className="text-center text-gray-600">Vista de calendario próximamente</p>
           </div>
         )}
       </main>
 
-      {/* Modal agregar/editar */}
-      {modalOpen && (
-        <div className="modal-overlay" onClick={() => setModalOpen(false)}>
-          <div className="modal-content max-w-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="text-lg font-display font-semibold text-gray-800">{modalTitle}</h3>
-              <button 
-                className="text-gray-400 hover:text-gray-600"
-                onClick={() => setModalOpen(false)}
-              >
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
-                </svg>
-              </button>
+      {/* Dialog - Create/Edit Game */}
+      {dialogOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-5 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-800">
+                {editingGame ? 'Editar Partido' : 'Crear Nuevo Partido'}
+              </h3>
             </div>
-            <div className="modal-body">
-              <form onSubmit={handleSave} className="space-y-6">
-                <div className="form-group">
-                  <label htmlFor="name" className="form-label">Nombre del Partido</label>
-                  <input
-                    type="text"
-                    id="name"
-                    className="form-input"
-                    placeholder="Ej: Liga Regional - Fecha 5"
-                    value={currentGame.name}
-                    onChange={(e) => setCurrentGame({ ...currentGame, name: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="form-group">
-                    <label htmlFor="date" className="form-label">Fecha</label>
-                    <input
-                      type="date"
-                      id="date"
-                      className="form-input"
-                      value={currentGame.date}
-                      onChange={(e) => setCurrentGame({ ...currentGame, date: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="time" className="form-label">Hora</label>
-                    <input
-                      type="time"
-                      id="time"
-                      className="form-input"
-                      value={currentGame.time}
-                      onChange={(e) => setCurrentGame({ ...currentGame, time: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="location" className="form-label">Ubicación</label>
-                  <input
-                    type="text"
-                    id="location"
-                    className="form-input"
-                    placeholder="Ej: Cancha Municipal, Col. Centro"
-                    value={currentGame.location}
-                    onChange={(e) => setCurrentGame({ ...currentGame, location: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button 
-                    type="button"
-                    className="btn btn-ghost" 
-                    onClick={() => setModalOpen(false)}
-                  >
-                    Cancelar
-                  </button>
-                  <button 
-                    type="submit"
-                    className="btn btn-primary"
-                  >
-                    {editingId ? "Guardar Cambios" : "Agregar Partido"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal postulados */}
-      {postuladosModal.open && (
-        <div className="modal-overlay" onClick={() => setPostuladosModal({ open: false, postulados: [], gameId: null })}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="text-lg font-display font-semibold text-gray-800">Árbitros Postulados</h3>
-            </div>
-            <div className="modal-body">
-              {postuladosModal.postulados.length === 0 ? (
-                <div className="text-center py-8">
-                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
-                  </svg>
-                  <p className="text-gray-600">No hay postulados para este partido.</p>
-                  <p className="text-sm text-gray-500 mt-2">Los árbitros aparecerán aquí cuando se postulen</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {postuladosModal.postulados.map((arbitro) => (
-                    <div key={arbitro._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden">
-                          {arbitro.imagenPerfil ? (
-                            <img 
-                              src={arbitro.imagenPerfil} 
-                              alt={arbitro.nombre} 
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-blue-100 flex items-center justify-center">
-                              <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{arbitro.nombre || arbitro.email}</p>
-                          <p className="text-sm text-gray-600">Árbitro Certificado</p>
-                        </div>
-                      </div>
-                      <button 
-                        className="btn btn-sm btn-primary" 
-                        onClick={() => assignArbitro(postuladosModal.gameId, arbitro._id)}
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                        </svg>
-                        Asignar
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button 
-                className="btn btn-ghost" 
-                onClick={() => setPostuladosModal({ open: false, postulados: [], gameId: null })}
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal selección de reporte */}
-      {reporteModal.open && (
-        <div className="modal-overlay" onClick={() => !reporteModal.cargando && setReporteModal({ ...reporteModal, open: false })}>
-          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="text-lg font-display font-semibold text-gray-800">Generar Reporte PDF</h3>
-              {!reporteModal.cargando && (
-                <button 
-                  className="text-gray-400 hover:text-gray-600"
-                  onClick={() => setReporteModal({ ...reporteModal, open: false })}
+            <form onSubmit={handleSubmit} className="p-5">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre*
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={gameForm.name}
+                  onChange={handleInputChange}
+                  className="form-input"
+                  placeholder="Ej: Semifinal Liga Local"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha*
+                </label>
+                <input
+                  type="date"
+                  name="date"
+                  value={gameForm.date}
+                  onChange={handleInputChange}
+                  className="form-input"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hora*
+                </label>
+                <input
+                  type="time"
+                  name="time"
+                  value={gameForm.time}
+                  onChange={handleInputChange}
+                  className="form-input"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ubicación
+                </label>
+                <input
+                  type="text"
+                  name="location"
+                  value={gameForm.location}
+                  onChange={handleInputChange}
+                  className="form-input"
+                  placeholder="Ej: Cancha Norte, Campo 2"
+                />
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setDialogOpen(false)}
+                  className="btn-outline-secondary"
                 >
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
-                  </svg>
+                  Cancelar
                 </button>
-              )}
-            </div>
-            <div className="modal-body">
-              {reporteModal.cargando ? (
-                <div className="text-center py-8 space-y-4">
-                  <div className="flex justify-center">
-                    <svg className="w-12 h-12 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-                  <p className="font-medium text-gray-800">Generando reporte PDF...</p>
-                  <p className="text-sm text-gray-600">El reporte se descargará automáticamente cuando esté listo.</p>
-                  <p className="text-xs text-gray-500">Por favor espere, esto puede tomar unos momentos</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-gray-600 text-sm">
-                    Selecciona el periodo para generar el reporte de partidos de tu cancha.
-                  </p>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="form-group">
-                      <label className="form-label">Mes</label>
-                      <select 
-                        className="form-input"
-                        value={reporteModal.mes}
-                        onChange={(e) => setReporteModal({ ...reporteModal, mes: parseInt(e.target.value) })}
-                      >
-                        <option value={1}>Enero</option>
-                        <option value={2}>Febrero</option>
-                        <option value={3}>Marzo</option>
-                        <option value={4}>Abril</option>
-                        <option value={5}>Mayo</option>
-                        <option value={6}>Junio</option>
-                        <option value={7}>Julio</option>
-                        <option value={8}>Agosto</option>
-                        <option value={9}>Septiembre</option>
-                        <option value={10}>Octubre</option>
-                        <option value={11}>Noviembre</option>
-                        <option value={12}>Diciembre</option>
-                      </select>
-                    </div>
-                    
-                    <div className="form-group">
-                      <label className="form-label">Año</label>
-                      <select 
-                        className="form-input"
-                        value={reporteModal.ano}
-                        onChange={(e) => setReporteModal({ ...reporteModal, ano: parseInt(e.target.value) })}
-                      >
-                        {Array.from({ length: 5 }, (_, i) => {
-                          const year = new Date().getFullYear() - 2 + i;
-                          return (
-                            <option key={year} value={year}>{year}</option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  </div>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                >
+                  {editingGame ? 'Guardar Cambios' : 'Crear Partido'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <div className="flex items-start space-x-3">
-                      <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
-                      </svg>
-                      <div>
-                        <h4 className="font-medium text-blue-900">¿Qué incluye el reporte?</h4>
-                        <ul className="text-sm text-blue-800 mt-1 space-y-1">
-                          <li>• Partidos activos y próximos</li>
-                          <li>• Historial de partidos del periodo</li>
-                          <li>• Estadísticas de completados/cancelados</li>
-                          <li>• Información de árbitros asignados</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+      {/* Modal - Reporte PDF */}
+      {reporteModal.open && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-5 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-800">
+                Generar Reporte
+              </h3>
             </div>
-            <div className="modal-footer">
-              <div className="flex justify-end space-x-3">
-                {!reporteModal.cargando && (
-                  <>
-                    <button 
-                      className="btn btn-ghost" 
-                      onClick={() => setReporteModal({ ...reporteModal, open: false })}
-                    >
-                      Cancelar
-                    </button>
-                    <button 
-                      className="btn btn-primary" 
-                      onClick={() => descargarReportePDF()}
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
-                      </svg>
-                      Generar PDF
-                    </button>
-                  </>
-                )}
+            <div className="p-5">
+              <p className="text-gray-600 mb-4">
+                Selecciona el período para generar el reporte de partidos
+              </p>
+              
+              <div className="grid grid-cols-2 gap-4 mb-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mes
+                  </label>
+                  <select 
+                    className="form-select"
+                    value={reporteModal.mes}
+                    onChange={(e) => setReporteModal(prevState => ({ ...prevState, mes: parseInt(e.target.value) }))}
+                  >
+                    {meses.map(mes => (
+                      <option key={mes.valor} value={mes.valor}>{mes.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Año
+                  </label>
+                  <select 
+                    className="form-select"
+                    value={reporteModal.ano}
+                    onChange={(e) => setReporteModal(prevState => ({ ...prevState, ano: parseInt(e.target.value) }))}
+                  >
+                    {años.map(ano => (
+                      <option key={ano} value={ano}>{ano}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  disabled={reporteModal.cargando}
+                  onClick={() => setReporteModal(prevState => ({ ...prevState, open: false }))}
+                  className="btn-outline-secondary"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => descargarReportePDF()}
+                  disabled={reporteModal.cargando}
+                  className="btn-primary relative"
+                >
+                  {reporteModal.cargando ? (
+                    <>
+                      <span className="opacity-0">Generar PDF</span>
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <div className="spinner-sm"></div>
+                      </span>
+                    </>
+                  ) : (
+                    'Generar PDF'
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -1596,4 +992,3 @@ export default function DashboardOrganizador() {
     </div>
   );
 }
-
