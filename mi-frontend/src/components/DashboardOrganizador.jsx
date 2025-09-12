@@ -667,21 +667,15 @@ export default function DashboardOrganizador() {
       
       // Intentar cargar e incluir el logo
       try {
-        // Comprobar si existe el logo
-        fetch('/logo.svg')
-          .then(response => {
-            if (response.ok) {
-              // Logo encontrado, intentar añadirlo
-              console.log('Logo encontrado, añadiendo al PDF');
-              doc.addImage('/logo.svg', 'SVG', 10, 5, 15, 15);
-            } else {
-              console.log('Logo no encontrado, continuando sin logo');
-            }
-          })
-          .catch(error => {
-            console.log('Error al verificar logo:', error);
-            // Continuar sin logo
-          });
+        // Logo base64 de respaldo (pequeño logo genérico)
+        const logoBase64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxZW0iIGhlaWdodD0iMWVtIiB2aWV3Qm94PSIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IndoaXRlIiBkPSJNMTIgMkM2LjQ4IDIgMiA2LjQ4IDIgMTJzNC40OCAxMCAxMCAxMHMxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMm0wIDE4Yy00LjQyIDAtOC0zLjU4LTgtOHMzLjU4LTggOC04czggMy41OCA4IDhzLTMuNTggOC04IDhtMy0xMmMtLjU1IDAtMS00LjQ1LTEtMXMuNDUgMSAxIDFzMS0uNDUgMS0xcy0uNDUtMS0xLTFtLTYgMGMtLjU1IDAtMS0uNDUtMS0xcy40NS0xIDEtMXMxIC40NSAxIDFzLS40NSAxLTEgMW0zIDEwYzIuNzYgMCA1LTIuMjQgNS01aC0yYzAgMS42NS0xLjM1IDMtMyAzcy0zLTEuMzUtMy0zaC0yYzAgMi43NiAyLjI0IDUgNSA1Ii8+PC9zdmc+';
+        
+        // Intentar agregar el logo
+        try {
+          doc.addImage(logoBase64, 'SVG', 10, 5, 15, 15);
+        } catch (logoError) {
+          console.log('Error al añadir logo base64, continuando sin logo:', logoError);
+        }
       } catch (e) {
         console.log('Error al intentar añadir logo:', e);
         // Continuar sin logo
@@ -801,32 +795,36 @@ export default function DashboardOrganizador() {
           doc.setFontSize(9);
           doc.text('Cancelados', margin + 170, yStats2 + 10, { align: 'center' });
           doc.setFontSize(16);
-          doc.text(reporteData.estadisticas.cancelados.toString(), margin + 170, yStats2 + 20, { align: 'center' });      // TABLA DE PARTIDOS
+          doc.text(reporteData.estadisticas.cancelados.toString(), margin + 170, yStats2 + 20, { align: 'center' });
+          
+          // Espacio adicional después de las estadísticas para evitar superposición
+          
+      // TABLA DE PARTIDOS
       if (reporteData.partidos && reporteData.partidos.length > 0) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
         doc.setTextColor(51, 51, 51); // Gris oscuro
-        doc.text('Lista de partidos:', margin, margin + 150);
+        doc.text('Lista de partidos:', margin, margin + 180); // Movido más abajo para evitar superposición
         
         // Tabla con diseño simplificado
-        const tableTop = margin + 160;
+        const tableTop = margin + 190; // Aumentado el espacio para que no se superponga
         let y = tableTop;
         
-        // Encabezados
-        doc.setFillColor(26, 93, 26); // Verde oscuro
-        doc.rect(margin, y, pageWidth - margin * 2, 10, 'F');
-        
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(255, 255, 255); // Blanco
-        
-        // Columnas de la tabla
+        // Columnas de la tabla - Definir primero para calcular el ancho total correctamente
         const col1 = margin + 3;        // Fecha
         const col2 = margin + 30;       // Nombre
         const col3 = margin + 75;       // Hora
         const col4 = margin + 95;       // Ubicación
         const col5 = margin + 135;      // Árbitro
         const col6 = margin + 170;      // Estado
+        
+        // Encabezados con ancho ajustado para cubrir todas las columnas incluido Estado
+        doc.setFillColor(26, 93, 26); // Verde oscuro
+        doc.rect(margin, y, pageWidth - margin * 2, 10, 'F');
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(255, 255, 255); // Blanco
         
         doc.text('Fecha', col1, y + 6);
         doc.text('Nombre', col2, y + 6);
@@ -925,6 +923,7 @@ export default function DashboardOrganizador() {
             doc.text('Hora', col3, y + 6);
             doc.text('Ubicación', col4, y + 6);
             doc.text('Árbitro', col5, y + 6);
+            doc.text('Estado', col6, y + 6); // Añadida columna Estado en páginas adicionales
             
             y += 10;
           }
