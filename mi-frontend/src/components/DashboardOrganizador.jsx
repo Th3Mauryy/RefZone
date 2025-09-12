@@ -414,7 +414,20 @@ export default function DashboardOrganizador() {
           if (dataAPI && Array.isArray(dataAPI.partidos)) {
             partidosFiltrados = dataAPI.partidos;
             reporteDesdeAPI = true;
-            console.log(`${partidosFiltrados.length} partidos obtenidos desde la API`);
+            console.log(`${partidosFiltrados.length} partidos obtenidos desde la API:`, partidosFiltrados);
+            
+            // Verificar estructura de cada partido
+            partidosFiltrados.forEach((partido, idx) => {
+              console.log(`Partido ${idx + 1} desde API:`, {
+                id: partido.id || partido._id,
+                nombre: partido.nombre || partido.name,
+                fecha: partido.fecha || partido.date,
+                hora: partido.hora || partido.time,
+                ubicacion: partido.ubicacion || partido.location,
+                arbitro: partido.arbitro || (partido.arbitroId ? 'Asignado' : 'Sin asignar'),
+                estado: partido.estado || 'Programado'
+              });
+            });
           }
         } else {
           console.log('No se pudieron obtener datos desde la API, error:', await res.text());
@@ -423,98 +436,123 @@ export default function DashboardOrganizador() {
         console.error('Error al obtener datos de la API:', apiError);
       }
       
-      // Si no pudimos obtener datos de la API, usar todos los partidos disponibles en este momento
+      // Si no pudimos obtener datos de la API, usar los partidos disponibles en el estado
       if (!reporteDesdeAPI) {
         console.log('Usando datos locales para generar el reporte...');
         console.log('Partidos disponibles en el estado local:', games.length);
         
         // Mostrar información detallada sobre los partidos para depuración
         games.forEach((partido, idx) => {
-          console.log(`Partido ${idx + 1}:`, {
+          console.log(`Partido ${idx + 1} (local):`, {
             id: partido._id,
             nombre: partido.name,
             fecha: partido.date,
+            hora: partido.time,
+            ubicacion: partido.location,
+            arbitro: partido.arbitro ? (partido.arbitro.nombre || partido.arbitro.email || 'Asignado') : 'Sin asignar',
+            canchaId: partido.canchaId,
             tipo_fecha: typeof partido.date
           });
         });
         
-        // Función mejorada para parsear fechas en varios formatos
-        const parseDate = (dateStr) => {
-          if (!dateStr) return null;
-          
-          try {
-            // Intentar convertir a fecha primero
-            const date = new Date(dateStr);
-            if (!isNaN(date.getTime())) {
-              return {
-                year: date.getFullYear(),
-                month: date.getMonth() + 1 // getMonth devuelve 0-11
-              };
-            }
+        // Crear un nuevo array con los datos en el formato esperado para el reporte
+        partidosFiltrados = games.map(partido => ({
+          id: partido._id,
+          nombre: partido.name,
+          fecha: partido.date,
+          hora: partido.time,
+          ubicacion: partido.location || (user?.canchaAsignada?.direccion || 'Sin ubicación'),
+          arbitro: partido.arbitro ? (
+            typeof partido.arbitro === 'object' ? 
+              (partido.arbitro.nombre || partido.arbitro.email || 'Árbitro asignado') :
+              'Árbitro asignado'
+          ) : 'Sin asignar',
+          tieneArbitro: !!partido.arbitro,
+          estado: partido.estado || 'Programado'
+        }));
+        
+        console.log('Partidos transformados para el PDF:', partidosFiltrados);
+        
+        // Filtrar por mes y año si hay suficientes partidos
+        if (partidosFiltrados.length > 2) {
+          // Función mejorada para parsear fechas en varios formatos
+          const parseDate = (dateStr) => {
+            if (!dateStr) return null;
             
-            // Si es un string con formato YYYY-MM-DD
-            if (typeof dateStr === 'string' && dateStr.includes('-')) {
-              const parts = dateStr.split('-');
-              if (parts.length >= 2) {
+            try {
+              // Intentar convertir a fecha primero
+              const date = new Date(dateStr);
+              if (!isNaN(date.getTime())) {
                 return {
-                  year: parseInt(parts[0]),
-                  month: parseInt(parts[1])
+                  year: date.getFullYear(),
+                  month: date.getMonth() + 1 // getMonth devuelve 0-11
                 };
               }
-            }
-            
-            // Si es un string con formato DD/MM/YYYY
-            if (typeof dateStr === 'string' && dateStr.includes('/')) {
-              const parts = dateStr.split('/');
-              if (parts.length === 3) {
-                // Formato DD/MM/YYYY
-                if (parseInt(parts[0]) <= 31) {
+              
+              // Si es un string con formato YYYY-MM-DD
+              if (typeof dateStr === 'string' && dateStr.includes('-')) {
+                const parts = dateStr.split('-');
+                if (parts.length >= 2) {
                   return {
-                    year: parseInt(parts[2]),
+                    year: parseInt(parts[0]),
                     month: parseInt(parts[1])
-                  };
-                } 
-                // Formato MM/DD/YYYY
-                else {
-                  return {
-                    year: parseInt(parts[2]),
-                    month: parseInt(parts[0])
                   };
                 }
               }
+              
+              // Si es un string con formato DD/MM/YYYY
+              if (typeof dateStr === 'string' && dateStr.includes('/')) {
+                const parts = dateStr.split('/');
+                if (parts.length === 3) {
+                  // Formato DD/MM/YYYY
+                  if (parseInt(parts[0]) <= 31) {
+                    return {
+                      year: parseInt(parts[2]),
+                      month: parseInt(parts[1])
+                    };
+                  } 
+                  // Formato MM/DD/YYYY
+                  else {
+                    return {
+                      year: parseInt(parts[2]),
+                      month: parseInt(parts[0])
+                    };
+                  }
+                }
+              }
+              
+              return null;
+            } catch (e) {
+              console.error('Error al parsear fecha:', e);
+              return null;
             }
-            
-            return null;
-          } catch (e) {
-            console.error('Error al parsear fecha:', e);
-            return null;
-          }
-        };
-        
-        // Filtrar partidos por mes y año con mejor manejo de errores
-        partidosFiltrados = games.filter(partido => {
-          try {
-            const parsedDate = parseDate(partido.date);
-            
-            if (parsedDate) {
-              return parsedDate.year === anoReporte && parsedDate.month === mesNumero;
+          };
+          
+          // Filtrar partidos por mes y año con mejor manejo de errores
+          const filtrados = partidosFiltrados.filter(partido => {
+            try {
+              const parsedDate = parseDate(partido.fecha);
+              
+              if (parsedDate) {
+                return parsedDate.year === anoReporte && parsedDate.month === mesNumero;
+              }
+              
+              return false;
+            } catch (e) {
+              console.error('Error al filtrar partido:', e, partido);
+              return false;
             }
-            
-            return false;
-          } catch (e) {
-            console.error('Error al filtrar partido:', e, partido);
-            return false;
+          });
+          
+          // Solo usamos los filtrados si hay alguno
+          if (filtrados.length > 0) {
+            console.log(`Filtrados ${filtrados.length} partidos para el mes ${mesNumero} y año ${anoReporte}`);
+            partidosFiltrados = filtrados;
           }
-        });
-        
-        // Si después del filtrado no hay partidos, usar todos como plan B
-        if (partidosFiltrados.length === 0) {
-          console.warn('No se encontraron partidos para el período especificado. Usando todos los partidos disponibles como ejemplo.');
-          partidosFiltrados = games;
         }
       }
       
-      console.log(`Partidos filtrados para el reporte: ${partidosFiltrados.length}`);
+      console.log(`Partidos finales para el reporte: ${partidosFiltrados.length}`);
       
       // Obtener información de la cancha desde user.canchaAsignada
       if (!user?.canchaAsignada) {
@@ -524,26 +562,51 @@ export default function DashboardOrganizador() {
       }
 
       // Si no hay partidos, crear algunos de ejemplo para mostrar el diseño
+      // En lugar de usar partidos de ejemplo, usaremos los partidos reales aunque sean de otro mes
       if (partidosFiltrados.length === 0) {
-        console.warn('No hay partidos para mostrar, creando ejemplos');
-        partidosFiltrados = [
-          {
-            _id: '1',
-            name: 'Partido de Ejemplo 1',
-            date: `${anoReporte}-${mesNumero.toString().padStart(2, '0')}-15`,
-            time: '18:00',
-            location: user.canchaAsignada.direccion || 'Cancha Principal',
-            arbitro: null
-          },
-          {
-            _id: '2',
-            name: 'Partido de Ejemplo 2',
-            date: `${anoReporte}-${mesNumero.toString().padStart(2, '0')}-20`,
-            time: '19:30',
-            location: user.canchaAsignada.direccion || 'Cancha Principal',
-            arbitro: { nombre: 'Árbitro Ejemplo', email: 'arbitro@ejemplo.com' }
-          }
-        ];
+        console.warn('No hay partidos específicos para el período, usando todos los partidos disponibles');
+        
+        if (games.length > 0) {
+          partidosFiltrados = games.map(partido => ({
+            id: partido._id,
+            nombre: partido.name,
+            fecha: partido.date,
+            hora: partido.time,
+            ubicacion: partido.location || (user?.canchaAsignada?.direccion || 'Sin ubicación'),
+            arbitro: partido.arbitro ? (
+              typeof partido.arbitro === 'object' ? 
+                (partido.arbitro.nombre || partido.arbitro.email || 'Árbitro asignado') :
+                'Árbitro asignado'
+            ) : 'Sin asignar',
+            tieneArbitro: !!partido.arbitro,
+            estado: partido.estado || 'Programado'
+          }));
+        } else {
+          // Si realmente no hay partidos, crear algunos de ejemplo
+          console.warn('No hay partidos para mostrar, creando ejemplos');
+          partidosFiltrados = [
+            {
+              id: '1',
+              nombre: 'Partido de Ejemplo 1',
+              fecha: `${anoReporte}-${mesNumero.toString().padStart(2, '0')}-15`,
+              hora: '18:00',
+              ubicacion: user.canchaAsignada.direccion || 'Cancha Principal',
+              arbitro: 'Árbitro Ejemplo',
+              tieneArbitro: true,
+              estado: 'Programado'
+            },
+            {
+              id: '2',
+              nombre: 'Partido de Ejemplo 2',
+              fecha: `${anoReporte}-${mesNumero.toString().padStart(2, '0')}-20`,
+              hora: '19:30',
+              ubicacion: user.canchaAsignada.direccion || 'Cancha Principal',
+              arbitro: 'Árbitro Ejemplo',
+              tieneArbitro: true,
+              estado: 'Programado'
+            }
+          ];
+        }
       }
       
       // Crear objeto reporteData con información mejorada
@@ -562,15 +625,19 @@ export default function DashboardOrganizador() {
           // Determinar el estado del partido de manera simplificada
           let estado = p.estado || 'Programado';
           
-          // Asegurar que los campos existan
+          // Extraer los valores correctamente, ya sea que vengan de la API o del estado local
           return {
-            id: p._id || 'ID-' + Math.random().toString(36).substr(2, 9),
-            nombre: p.name || 'Partido sin nombre',
-            fecha: p.date || `${anoReporte}-${mesNumero.toString().padStart(2, '0')}-01`,
-            hora: p.time || '12:00',
-            ubicacion: p.location || user.canchaAsignada.direccion || 'Sin ubicación',
-            arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email || 'Árbitro asignado') : 'Sin asignar',
-            tieneArbitro: !!p.arbitro,
+            id: p.id || p._id || 'ID-' + Math.random().toString(36).substr(2, 9),
+            nombre: p.nombre || p.name || 'Partido sin nombre',
+            fecha: p.fecha || p.date || `${anoReporte}-${mesNumero.toString().padStart(2, '0')}-01`,
+            hora: p.hora || p.time || '12:00',
+            ubicacion: p.ubicacion || p.location || user.canchaAsignada.direccion || 'Sin ubicación',
+            arbitro: typeof p.arbitro === 'string' ? 
+              p.arbitro : 
+              (p.arbitro && typeof p.arbitro === 'object' ? 
+                (p.arbitro.nombre || p.arbitro.email || 'Árbitro asignado') : 
+                'Sin asignar'),
+            tieneArbitro: p.tieneArbitro !== undefined ? p.tieneArbitro : !!p.arbitro,
             estado: estado
           };
         }),
@@ -579,8 +646,8 @@ export default function DashboardOrganizador() {
         nombreCancha: user.canchaAsignada.nombre || 'Todas',
         estadisticas: {
           total: partidosFiltrados.length,
-          conArbitro: partidosFiltrados.filter(p => p.arbitro).length,
-          sinArbitro: partidosFiltrados.filter(p => !p.arbitro).length,
+          conArbitro: partidosFiltrados.filter(p => p.tieneArbitro || p.arbitro).length,
+          sinArbitro: partidosFiltrados.filter(p => !p.tieneArbitro && !p.arbitro).length,
           programados: partidosFiltrados.filter(p => !p.estado || p.estado === 'Programado').length,
           enCurso: partidosFiltrados.filter(p => p.estado === 'En curso').length,
           finalizados: partidosFiltrados.filter(p => p.estado === 'Finalizado').length,
@@ -808,19 +875,31 @@ export default function DashboardOrganizador() {
           doc.setFontSize(8);
           doc.setTextColor(51, 51, 51); // Gris oscuro
           
-          // Evitar que el texto sea undefined
+          // Evitar que el texto sea undefined y controlar longitud máxima para evitar desbordamientos
           const fechaTexto = formatDate(partido.fecha) || 'N/A';
-          const nombreTexto = partido.nombre || 'Sin nombre';
+          
+          // Limitar longitud de textos largos para evitar desbordamiento
+          let nombreTexto = partido.nombre || 'Sin nombre';
+          if (nombreTexto.length > 25) nombreTexto = nombreTexto.substring(0, 22) + '...';
+          
           const horaTexto = partido.hora || 'N/A';
-          const ubicacionTexto = partido.ubicacion || 'N/A';
-          const arbitroTexto = partido.arbitro || 'Sin asignar';
+          
+          let ubicacionTexto = partido.ubicacion || 'N/A';
+          if (ubicacionTexto.length > 18) ubicacionTexto = ubicacionTexto.substring(0, 15) + '...';
+          
+          let arbitroTexto = partido.arbitro || 'Sin asignar';
+          if (arbitroTexto.length > 20) arbitroTexto = arbitroTexto.substring(0, 17) + '...';
           
           // Asegurarnos de que los textos no sean undefined antes de pasarlos a jsPDF
-          doc.text(fechaTexto, col1, y + 5);
-          doc.text(nombreTexto, col2, y + 5);
-          doc.text(horaTexto, col3, y + 5);
-          doc.text(ubicacionTexto, col4, y + 5);
-          doc.text(arbitroTexto, col5, y + 5);
+          try {
+            doc.text(String(fechaTexto), col1, y + 5);
+            doc.text(String(nombreTexto), col2, y + 5);
+            doc.text(String(horaTexto), col3, y + 5);
+            doc.text(String(ubicacionTexto), col4, y + 5);
+            doc.text(String(arbitroTexto), col5, y + 5);
+          } catch (e) {
+            console.error("Error al dibujar texto en PDF:", e);
+          }
           
           y += rowHeight;
           
