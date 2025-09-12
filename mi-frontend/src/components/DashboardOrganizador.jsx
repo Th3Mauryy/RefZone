@@ -632,8 +632,8 @@ export default function DashboardOrganizador() {
         nombreCancha: user.canchaAsignada.nombre || 'Todas',
         estadisticas: {
           total: partidosFiltrados.length,
-          conArbitro: partidosFiltrados.filter(p => p.tieneArbitro || p.arbitro).length,
-          sinArbitro: partidosFiltrados.filter(p => !p.tieneArbitro || p.arbitro === null || p.arbitro === undefined || p.arbitro === '').length,
+          conArbitro: partidosFiltrados.filter(p => p.arbitro && p.arbitro !== 'Sin asignar').length,
+          sinArbitro: partidosFiltrados.filter(p => !p.arbitro || p.arbitro === 'Sin asignar').length,
           programados: partidosFiltrados.filter(p => p.estado === 'Programado' || !p.estado).length,
           enCurso: partidosFiltrados.filter(p => p.estado === 'En curso').length,
           finalizados: partidosFiltrados.filter(p => p.estado === 'Finalizado').length,
@@ -924,7 +924,6 @@ export default function DashboardOrganizador() {
             doc.text('Ubicación', col4, y + 6);
             doc.text('Árbitro', col5, y + 6);
             doc.text('Estado', col6, y + 6); // Añadir columna Estado en los encabezados de nuevas páginas
-            doc.text('Estado', col6, y + 6); // Añadida columna Estado en páginas adicionales
             
             y += 10;
           }
