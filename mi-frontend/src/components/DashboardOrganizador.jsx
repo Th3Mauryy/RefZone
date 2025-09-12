@@ -804,10 +804,10 @@ export default function DashboardOrganizador() {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
         doc.setTextColor(51, 51, 51); // Gris oscuro
-        doc.text('Lista de partidos:', margin, margin + 180); // Movido más abajo para evitar superposición
+        doc.text('Lista de partidos:', margin, margin + 170); // Reducido para dejar más espacio entre el título y la tabla
         
         // Tabla con diseño simplificado
-        const tableTop = margin + 190; // Aumentado el espacio para que no se superponga
+        const tableTop = margin + 185; // Aumentado el espacio para que no se superponga
         let y = tableTop;
         
         // Columnas de la tabla - Definir primero para calcular el ancho total correctamente
@@ -923,6 +923,7 @@ export default function DashboardOrganizador() {
             doc.text('Hora', col3, y + 6);
             doc.text('Ubicación', col4, y + 6);
             doc.text('Árbitro', col5, y + 6);
+            doc.text('Estado', col6, y + 6); // Añadir columna Estado en los encabezados de nuevas páginas
             doc.text('Estado', col6, y + 6); // Añadida columna Estado en páginas adicionales
             
             y += 10;
