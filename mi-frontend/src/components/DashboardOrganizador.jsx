@@ -561,55 +561,15 @@ export default function DashboardOrganizador() {
         return;
       }
 
-      // Si no hay partidos, crear algunos de ejemplo para mostrar el diseño
-      // En lugar de usar partidos de ejemplo, usaremos los partidos reales aunque sean de otro mes
+      // Si no hay partidos, mostrar un mensaje y cancelar la generación del PDF
       if (partidosFiltrados.length === 0) {
-        console.warn('No hay partidos específicos para el período, usando todos los partidos disponibles');
-        
-        if (games.length > 0) {
-          partidosFiltrados = games.map(partido => ({
-            id: partido._id,
-            nombre: partido.name,
-            fecha: partido.date,
-            hora: partido.time,
-            ubicacion: partido.location || (user?.canchaAsignada?.direccion || 'Sin ubicación'),
-            arbitro: partido.arbitro ? (
-              typeof partido.arbitro === 'object' ? 
-                (partido.arbitro.nombre || partido.arbitro.email || 'Árbitro asignado') :
-                'Árbitro asignado'
-            ) : 'Sin asignar',
-            tieneArbitro: !!partido.arbitro,
-            estado: partido.estado || 'Programado'
-          }));
-        } else {
-          // Si realmente no hay partidos, crear algunos de ejemplo
-          console.warn('No hay partidos para mostrar, creando ejemplos');
-          partidosFiltrados = [
-            {
-              id: '1',
-              nombre: 'Partido de Ejemplo 1',
-              fecha: `${anoReporte}-${mesNumero.toString().padStart(2, '0')}-15`,
-              hora: '18:00',
-              ubicacion: user.canchaAsignada.direccion || 'Cancha Principal',
-              arbitro: 'Árbitro Ejemplo',
-              tieneArbitro: true,
-              estado: 'Programado'
-            },
-            {
-              id: '2',
-              nombre: 'Partido de Ejemplo 2',
-              fecha: `${anoReporte}-${mesNumero.toString().padStart(2, '0')}-20`,
-              hora: '19:30',
-              ubicacion: user.canchaAsignada.direccion || 'Cancha Principal',
-              arbitro: 'Árbitro Ejemplo',
-              tieneArbitro: true,
-              estado: 'Programado'
-            }
-          ];
-        }
+        console.warn('No hay partidos registrados para el período seleccionado.');
+        alert('No hay partidos registrados para el período seleccionado.');
+        setReporteModal(prevState => ({ ...prevState, cargando: false }));
+        return;
       }
       
-      // Crear objeto reporteData con información mejorada
+      // Crear objeto reporteData con información detallada
       const reporteData = {
         cancha: {
           nombre: user.canchaAsignada.nombre || 'Cancha sin nombre',
@@ -622,8 +582,34 @@ export default function DashboardOrganizador() {
           anio: anoReporte
         },
         partidos: partidosFiltrados.map(p => {
-          // Determinar el estado del partido de manera simplificada
-          let estado = p.estado || 'Programado';
+          // Determinar el estado del partido de forma avanzada
+          let estado = p.estado;
+          
+          if (!estado) {
+            // Si no tiene estado asignado, lo determinamos según la fecha y hora
+            const fechaPartido = new Date(p.fecha || p.date);
+            const horaPartido = p.hora || p.time || '12:00';
+            const [horas, minutos] = horaPartido.split(':').map(Number);
+            
+            fechaPartido.setHours(horas || 0, minutos || 0);
+            
+            const fechaActual = new Date();
+            const diferenciaTiempo = fechaPartido.getTime() - fechaActual.getTime();
+            const diferenciaHoras = diferenciaTiempo / (1000 * 60 * 60);
+            
+            if (diferenciaHoras > 1) {
+              estado = 'Programado'; // Futuro
+            } else if (diferenciaHoras > -1) {
+              estado = 'En curso';   // ±1 hora del momento actual
+            } else {
+              estado = 'Finalizado'; // Pasado
+            }
+          }
+          
+          // Si está específicamente marcado como cancelado, mantener ese estado
+          if (p.estado === 'Cancelado') {
+            estado = 'Cancelado';
+          }
           
           // Extraer los valores correctamente, ya sea que vengan de la API o del estado local
           return {
@@ -647,8 +633,8 @@ export default function DashboardOrganizador() {
         estadisticas: {
           total: partidosFiltrados.length,
           conArbitro: partidosFiltrados.filter(p => p.tieneArbitro || p.arbitro).length,
-          sinArbitro: partidosFiltrados.filter(p => !p.tieneArbitro && !p.arbitro).length,
-          programados: partidosFiltrados.filter(p => !p.estado || p.estado === 'Programado').length,
+          sinArbitro: partidosFiltrados.filter(p => !p.tieneArbitro || p.arbitro === null || p.arbitro === undefined || p.arbitro === '').length,
+          programados: partidosFiltrados.filter(p => p.estado === 'Programado' || !p.estado).length,
           enCurso: partidosFiltrados.filter(p => p.estado === 'En curso').length,
           finalizados: partidosFiltrados.filter(p => p.estado === 'Finalizado').length,
           cancelados: partidosFiltrados.filter(p => p.estado === 'Cancelado').length
@@ -678,6 +664,28 @@ export default function DashboardOrganizador() {
       // Fondo de color para el encabezado
       doc.setFillColor(26, 93, 26); // Verde oscuro
       doc.rect(0, 0, pageWidth, 25, 'F');
+      
+      // Intentar cargar e incluir el logo
+      try {
+        // Comprobar si existe el logo
+        fetch('/logo.svg')
+          .then(response => {
+            if (response.ok) {
+              // Logo encontrado, intentar añadirlo
+              console.log('Logo encontrado, añadiendo al PDF');
+              doc.addImage('/logo.svg', 'SVG', 10, 5, 15, 15);
+            } else {
+              console.log('Logo no encontrado, continuando sin logo');
+            }
+          })
+          .catch(error => {
+            console.log('Error al verificar logo:', error);
+            // Continuar sin logo
+          });
+      } catch (e) {
+        console.log('Error al intentar añadir logo:', e);
+        // Continuar sin logo
+      }
       
       // Título del reporte
       doc.setFont('helvetica', 'bold');
@@ -726,46 +734,74 @@ export default function DashboardOrganizador() {
       doc.setFontSize(12);
       doc.text('Resumen del período:', margin, margin + 100);
       
-      // Estadísticas básicas
-      const yStats = margin + 110;
-      
-      // Total de partidos
-      doc.setFillColor(26, 93, 26); // Verde oscuro
-      doc.roundedRect(margin, yStats, 40, 25, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255); // Blanco
-      doc.setFontSize(9);
-      doc.text('Total partidos', margin + 20, yStats + 10, { align: 'center' });
-      doc.setFontSize(16);
-      doc.text(reporteData.estadisticas.total.toString(), margin + 20, yStats + 20, { align: 'center' });
-      
-      // Con árbitro
-      doc.setFillColor(76, 175, 80); // Verde
-      doc.roundedRect(margin + 50, yStats, 40, 25, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255); // Blanco
-      doc.setFontSize(9);
-      doc.text('Con árbitro', margin + 70, yStats + 10, { align: 'center' });
-      doc.setFontSize(16);
-      doc.text(reporteData.estadisticas.conArbitro.toString(), margin + 70, yStats + 20, { align: 'center' });
-      
-      // Sin árbitro
-      doc.setFillColor(255, 152, 0); // Naranja
-      doc.roundedRect(margin + 100, yStats, 40, 25, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255); // Blanco
-      doc.setFontSize(9);
-      doc.text('Sin árbitro', margin + 120, yStats + 10, { align: 'center' });
-      doc.setFontSize(16);
-      doc.text(reporteData.estadisticas.sinArbitro.toString(), margin + 120, yStats + 20, { align: 'center' });
-      
-      // Finalizados
-      doc.setFillColor(33, 150, 243); // Azul
-      doc.roundedRect(margin + 150, yStats, 40, 25, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255); // Blanco
-      doc.setFontSize(9);
-      doc.text('Finalizados', margin + 170, yStats + 10, { align: 'center' });
-      doc.setFontSize(16);
-      doc.text(reporteData.estadisticas.finalizados.toString(), margin + 170, yStats + 20, { align: 'center' });
-      
-      // TABLA DE PARTIDOS
+          // Estadísticas básicas
+          const yStats = margin + 110;
+          
+          // Total de partidos
+          doc.setFillColor(26, 93, 26); // Verde oscuro
+          doc.roundedRect(margin, yStats, 40, 25, 3, 3, 'F');
+          doc.setTextColor(255, 255, 255); // Blanco
+          doc.setFontSize(9);
+          doc.text('Total partidos', margin + 20, yStats + 10, { align: 'center' });
+          doc.setFontSize(16);
+          doc.text(reporteData.estadisticas.total.toString(), margin + 20, yStats + 20, { align: 'center' });
+          
+          // Con árbitro
+          doc.setFillColor(76, 175, 80); // Verde
+          doc.roundedRect(margin + 50, yStats, 40, 25, 3, 3, 'F');
+          doc.setTextColor(255, 255, 255); // Blanco
+          doc.setFontSize(9);
+          doc.text('Con árbitro', margin + 70, yStats + 10, { align: 'center' });
+          doc.setFontSize(16);
+          doc.text(reporteData.estadisticas.conArbitro.toString(), margin + 70, yStats + 20, { align: 'center' });
+          
+          // Sin árbitro
+          doc.setFillColor(255, 152, 0); // Naranja
+          doc.roundedRect(margin + 100, yStats, 40, 25, 3, 3, 'F');
+          doc.setTextColor(255, 255, 255); // Blanco
+          doc.setFontSize(9);
+          doc.text('Sin árbitro', margin + 120, yStats + 10, { align: 'center' });
+          doc.setFontSize(16);
+          doc.text(reporteData.estadisticas.sinArbitro.toString(), margin + 120, yStats + 20, { align: 'center' });
+          
+          // Segunda fila de estadísticas - Estados
+          const yStats2 = yStats + 30;
+          
+          // Programados
+          doc.setFillColor(76, 175, 80); // Verde
+          doc.roundedRect(margin, yStats2, 40, 25, 3, 3, 'F');
+          doc.setTextColor(255, 255, 255); // Blanco
+          doc.setFontSize(9);
+          doc.text('Programados', margin + 20, yStats2 + 10, { align: 'center' });
+          doc.setFontSize(16);
+          doc.text(reporteData.estadisticas.programados.toString(), margin + 20, yStats2 + 20, { align: 'center' });
+          
+          // En curso
+          doc.setFillColor(255, 152, 0); // Naranja
+          doc.roundedRect(margin + 50, yStats2, 40, 25, 3, 3, 'F');
+          doc.setTextColor(255, 255, 255); // Blanco
+          doc.setFontSize(9);
+          doc.text('En curso', margin + 70, yStats2 + 10, { align: 'center' });
+          doc.setFontSize(16);
+          doc.text(reporteData.estadisticas.enCurso.toString(), margin + 70, yStats2 + 20, { align: 'center' });
+          
+          // Finalizados
+          doc.setFillColor(33, 150, 243); // Azul
+          doc.roundedRect(margin + 100, yStats2, 40, 25, 3, 3, 'F');
+          doc.setTextColor(255, 255, 255); // Blanco
+          doc.setFontSize(9);
+          doc.text('Finalizados', margin + 120, yStats2 + 10, { align: 'center' });
+          doc.setFontSize(16);
+          doc.text(reporteData.estadisticas.finalizados.toString(), margin + 120, yStats2 + 20, { align: 'center' });
+          
+          // Cancelados
+          doc.setFillColor(244, 67, 54); // Rojo
+          doc.roundedRect(margin + 150, yStats2, 40, 25, 3, 3, 'F');
+          doc.setTextColor(255, 255, 255); // Blanco
+          doc.setFontSize(9);
+          doc.text('Cancelados', margin + 170, yStats2 + 10, { align: 'center' });
+          doc.setFontSize(16);
+          doc.text(reporteData.estadisticas.cancelados.toString(), margin + 170, yStats2 + 20, { align: 'center' });      // TABLA DE PARTIDOS
       if (reporteData.partidos && reporteData.partidos.length > 0) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
@@ -787,48 +823,76 @@ export default function DashboardOrganizador() {
         // Columnas de la tabla
         const col1 = margin + 3;        // Fecha
         const col2 = margin + 30;       // Nombre
-        const col3 = margin + 85;       // Hora
-        const col4 = margin + 110;      // Ubicación
-        const col5 = margin + 150;      // Árbitro
+        const col3 = margin + 75;       // Hora
+        const col4 = margin + 95;       // Ubicación
+        const col5 = margin + 135;      // Árbitro
+        const col6 = margin + 170;      // Estado
         
         doc.text('Fecha', col1, y + 6);
         doc.text('Nombre', col2, y + 6);
         doc.text('Hora', col3, y + 6);
         doc.text('Ubicación', col4, y + 6);
         doc.text('Árbitro', col5, y + 6);
+        doc.text('Estado', col6, y + 6);
         
         y += 10; // Avanzar a la primera fila de datos
         
-        // Función para formatear fecha
+        // Función para formatear fechas de forma consistente siempre a DD/MM/YYYY
         function formatDate(dateStr) {
           if (!dateStr) return 'N/A';
           
           try {
-            // Si es un objeto Date o un timestamp
-            const date = new Date(dateStr);
+            // Convertir a objeto Date para cualquier formato de entrada
+            let date;
+            
+            if (typeof dateStr === 'string') {
+              // Manejar diferentes formatos de fecha en string
+              if (dateStr.includes('-')) {
+                // Formato ISO YYYY-MM-DD
+                const [año, mes, dia] = dateStr.split('-');
+                const diaParts = dia.split('T')[0]; // Remover parte de hora si existe
+                date = new Date(`${año}-${mes}-${diaParts}T00:00:00`);
+              } else if (dateStr.includes('/')) {
+                // Puede ser DD/MM/YYYY o MM/DD/YYYY
+                const parts = dateStr.split('/');
+                if (parts[2] && parts[2].length === 4) {
+                  // Asumimos que el año está al final (posición 2)
+                  if (parseInt(parts[0]) > 12) {
+                    // DD/MM/YYYY
+                    date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                  } else {
+                    // Puede ser MM/DD/YYYY o DD/MM/YYYY, asumimos DD/MM/YYYY para estandarizar
+                    date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                  }
+                } else {
+                  // Formato inusual, intentamos parsear directamente
+                  date = new Date(dateStr);
+                }
+              } else {
+                // Otro formato, intentar parsear directamente
+                date = new Date(dateStr);
+              }
+            } else if (dateStr instanceof Date) {
+              date = dateStr;
+            } else {
+              // Número (timestamp) u otro formato
+              date = new Date(dateStr);
+            }
+            
+            // Verificar si la fecha es válida
             if (!isNaN(date.getTime())) {
-              return date.toLocaleDateString('es-ES', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              });
+              // Formatear siempre como DD/MM/YYYY
+              const dia = String(date.getDate()).padStart(2, '0');
+              const mes = String(date.getMonth() + 1).padStart(2, '0');
+              const año = date.getFullYear();
+              
+              return `${dia}/${mes}/${año}`;
             }
             
-            // Si es un string con formato YYYY-MM-DD
-            if (dateStr.includes('-')) {
-              const [año, mes, dia] = dateStr.split('-');
-              return `${dia.split('T')[0]}/${mes}/${año}`;
-            }
-            
-            // Si ya tiene formato DD/MM/YYYY
-            if (dateStr.includes('/')) {
-              return dateStr;
-            }
-            
-            return dateStr;
+            return 'N/A'; // Si no pudimos convertirla
           } catch (e) {
             console.error('Error formateando fecha:', e);
-            return dateStr;
+            return 'N/A';
           }
         }
         
@@ -880,15 +944,26 @@ export default function DashboardOrganizador() {
           
           // Limitar longitud de textos largos para evitar desbordamiento
           let nombreTexto = partido.nombre || 'Sin nombre';
-          if (nombreTexto.length > 25) nombreTexto = nombreTexto.substring(0, 22) + '...';
+          if (nombreTexto.length > 20) nombreTexto = nombreTexto.substring(0, 17) + '...';
           
           const horaTexto = partido.hora || 'N/A';
           
           let ubicacionTexto = partido.ubicacion || 'N/A';
-          if (ubicacionTexto.length > 18) ubicacionTexto = ubicacionTexto.substring(0, 15) + '...';
+          if (ubicacionTexto.length > 15) ubicacionTexto = ubicacionTexto.substring(0, 12) + '...';
           
           let arbitroTexto = partido.arbitro || 'Sin asignar';
-          if (arbitroTexto.length > 20) arbitroTexto = arbitroTexto.substring(0, 17) + '...';
+          if (arbitroTexto.length > 15) arbitroTexto = arbitroTexto.substring(0, 12) + '...';
+          
+          // Determinar el estado correcto del partido
+          let estadoTexto = partido.estado || 'Programado';
+          
+          // Colorear el estado según su valor
+          const colorEstado = {
+            'Programado': '#4CAF50', // Verde
+            'En curso': '#FF9800',   // Naranja
+            'Finalizado': '#2196F3', // Azul
+            'Cancelado': '#F44336'   // Rojo
+          }[estadoTexto] || '#757575'; // Gris por defecto
           
           // Asegurarnos de que los textos no sean undefined antes de pasarlos a jsPDF
           try {
@@ -897,6 +972,12 @@ export default function DashboardOrganizador() {
             doc.text(String(horaTexto), col3, y + 5);
             doc.text(String(ubicacionTexto), col4, y + 5);
             doc.text(String(arbitroTexto), col5, y + 5);
+            
+            // Guardar color actual, cambiar a color según estado, y luego restaurar
+            const currentTextColor = doc.getTextColor();
+            doc.setTextColor(colorEstado);
+            doc.text(String(estadoTexto), col6, y + 5);
+            doc.setTextColor(currentTextColor);
           } catch (e) {
             console.error("Error al dibujar texto en PDF:", e);
           }
@@ -936,8 +1017,10 @@ export default function DashboardOrganizador() {
       doc.setTextColor(26, 93, 26); // Verde oscuro
       doc.text('RefZone - Sistema de Gestión Deportiva', pageWidth / 2, pageHeight - 7, { align: 'center' });
       
-      // Guardar el PDF
+      // Guardar el PDF con tipo MIME correcto
       const nombreArchivo = `reporte-partidos-${reporteData.cancha.nombre.replace(/\s+/g, '-')}-${mesNombre}-${anoReporte}.pdf`;
+      
+      // Usar método nativo de jsPDF para guardar el documento como PDF
       doc.save(nombreArchivo);
       
       // Cerrar modal
