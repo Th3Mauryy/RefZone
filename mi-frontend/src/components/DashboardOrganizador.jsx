@@ -597,12 +597,13 @@ export default function DashboardOrganizador() {
             const diferenciaTiempo = fechaPartido.getTime() - fechaActual.getTime();
             const diferenciaHoras = diferenciaTiempo / (1000 * 60 * 60);
             
+            // Nueva lógica para determinar estado basado en la hora del partido
             if (diferenciaHoras > 1) {
-              estado = 'Programado'; // Futuro
-            } else if (diferenciaHoras > -1) {
-              estado = 'En curso';   // ±1 hora del momento actual
+              estado = 'Programado'; // Más de 1 hora antes del inicio
+            } else if (diferenciaHoras > -2) {
+              estado = 'En curso';   // Desde 1 hora antes hasta 2 horas después
             } else {
-              estado = 'Finalizado'; // Pasado
+              estado = 'Finalizado'; // Más de 2 horas después (asumiendo que un partido dura ~90 minutos)
             }
           }
           
@@ -817,10 +818,11 @@ export default function DashboardOrganizador() {
         const col4 = margin + 95;       // Ubicación
         const col5 = margin + 135;      // Árbitro
         const col6 = margin + 170;      // Estado
+        const tableWidth = pageWidth - margin * 2; // Ancho total de la tabla
         
         // Encabezados con ancho ajustado para cubrir todas las columnas incluido Estado
         doc.setFillColor(26, 93, 26); // Verde oscuro
-        doc.rect(margin, y, pageWidth - margin * 2, 10, 'F');
+        doc.rect(margin, y, tableWidth, 10, 'F');
         
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
@@ -912,7 +914,7 @@ export default function DashboardOrganizador() {
             
             // Repetir encabezados en la nueva página
             doc.setFillColor(26, 93, 26); // Verde oscuro
-            doc.rect(margin, y, pageWidth - margin * 2, 10, 'F');
+            doc.rect(margin, y, tableWidth, 10, 'F'); // Usar tableWidth para consistencia
             
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);

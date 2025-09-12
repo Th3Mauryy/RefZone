@@ -14,6 +14,7 @@ const gameRoutes = require('./routes/gameRoutes');
 const reporteRoutes = require('./routes/reporteRoutes');
 const crearOrganizadorPorDefecto = require('./config/initOrganizador');
 const crearCanchaGolwin = require('./config/initCancha');
+const HistorialPartido = require('./models/HistorialPartido');
 const migrarEstadioACancha = require('./config/migrateEstadioToCancha');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -149,9 +150,9 @@ function iniciarAutoEliminacionPartidos() {
                             const arbitroMailOptions = {
                                 from: `"Soporte Refzone" <${process.env.EMAIL_USER}>`,
                                 to: partido.arbitro.email,
-                                subject: 'Partido Finalizado - RefZone',
+                                subject: 'Partido Finalizado y Archivado - RefZone',
                                 html: `<p>Hola <strong>${partido.arbitro.nombre}</strong>,</p>
-<p>Te informamos que el partido <strong>"${partido.name}"</strong> programado para <strong>${formattedDate}</strong> <strong>${formattedTime}</strong> en <strong>${partido.location}</strong> ha sido <span style="color: blue; font-weight: bold;">finalizado</span> automáticamente del sistema.</p>
+<p>Te informamos que el partido <strong>"${partido.name}"</strong> programado para <strong>${formattedDate}</strong> <strong>${formattedTime}</strong> en <strong>${partido.location}</strong> ha sido <span style="color: blue; font-weight: bold;">finalizado y archivado</span> automáticamente del sistema.</p>
 <p>Esperamos que el partido haya transcurrido exitosamente.</p>
 <p>¡Gracias por ser parte de RefZone!</p>
 <p>Saludos,<br>Equipo RefZone</p>`
@@ -165,9 +166,9 @@ function iniciarAutoEliminacionPartidos() {
                                 const postuladoMailOptions = {
                                     from: `"Soporte Refzone" <${process.env.EMAIL_USER}>`,
                                     to: postulado.email,
-                                    subject: 'Partido Finalizado - RefZone',
+                                    subject: 'Partido Finalizado y Archivado - RefZone',
                                     html: `<p>Hola <strong>${postulado.nombre}</strong>,</p>
-<p>Te informamos que el partido <strong>"${partido.name}"</strong> para el cual te habías postulado, programado para <strong>${formattedDate}</strong> <strong>${formattedTime}</strong> en <strong>${partido.location}</strong>, ha sido <span style="color: blue; font-weight: bold;">finalizado</span> automáticamente del sistema.</p>
+<p>Te informamos que el partido <strong>"${partido.name}"</strong> para el cual te habías postulado, programado para <strong>${formattedDate}</strong> <strong>${formattedTime}</strong> en <strong>${partido.location}</strong>, ha sido <span style="color: blue; font-weight: bold;">finalizado y archivado</span> automáticamente del sistema.</p>
 <p>¡Gracias por tu interés en participar!</p>
 <p>Saludos,<br>Equipo RefZone</p>`
                                 };
@@ -175,13 +176,27 @@ function iniciarAutoEliminacionPartidos() {
                             });
                         }
                         
-                        // Eliminar el partido y enviar correos
+                        // En lugar de eliminar, marcarlo como finalizado y moverlo al historial
+                        const historialPartido = new HistorialPartido({
+                            originalId: partido._id,
+                            nombre: partido.name,
+                            fecha: partido.date,
+                            hora: partido.time,
+                            ubicacion: partido.location,
+                            arbitro: partido.arbitro ? partido.arbitro._id : null,
+                            arbitroNombre: partido.arbitro ? partido.arbitro.nombre : 'Sin asignar',
+                            estado: 'Finalizado',
+                            canchaId: partido.canchaId
+                        });
+                        
+                        // Guardar en historial y eliminar el original
+                        await historialPartido.save();
                         await Game.findByIdAndDelete(partido._id);
                         
                         // Enviar correos (sin bloquear si fallan)
                         try {
                             await Promise.all(emailPromises);
-                            console.log(`✅ Partido ${partido.name} eliminado y correos enviados`);
+                            console.log(`✅ Partido ${partido.name} archivado en historial y correos enviados`);
                         } catch (emailError) {
                             console.error('⚠️ Error al enviar correos de finalización:', emailError);
                         }
