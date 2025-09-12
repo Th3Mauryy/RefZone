@@ -381,12 +381,6 @@ export default function DashboardOrganizador() {
       // Si no se proporcionan mes/año, usar los del modal o fecha actual
       const mesNumero = mes || reporteModal.mes;
       const anoReporte = ano || reporteModal.ano;
-      const token = localStorage.getItem("token");
-      
-      if (!token) {
-        alert('No tienes autorización. Por favor inicia sesión nuevamente.');
-        return;
-      }
       
       // Convertir número del mes a nombre del mes en español
       const mesesNombres = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 
@@ -395,6 +389,7 @@ export default function DashboardOrganizador() {
       
       console.log(`Generando reporte para ${mesNombre} de ${anoReporte}`);
       
+      // Variable para almacenar los partidos filtrados
       let partidosFiltrados = [];
       let reporteDesdeAPI = false;
       
@@ -416,7 +411,6 @@ export default function DashboardOrganizador() {
           console.log('Datos del reporte obtenidos desde la API:', dataAPI);
           
           // Si obtenemos datos desde la API, ya contienen tanto partidos activos como históricos
-          // con sus estados calculados correctamente
           if (dataAPI && Array.isArray(dataAPI.partidos)) {
             partidosFiltrados = dataAPI.partidos;
             reporteDesdeAPI = true;
@@ -456,11 +450,11 @@ export default function DashboardOrganizador() {
                 }
               }
             }
-            // Si no podemos determinar la fecha, incluimos el partido
-            return true;
+            // Si no podemos determinar la fecha, no incluimos el partido
+            return false;
           } catch (e) {
             console.error('Error al filtrar partido:', e);
-            return true; // Incluir el partido si hay error
+            return false; // No incluir el partido si hay error
           }
         });
       }
@@ -487,46 +481,10 @@ export default function DashboardOrganizador() {
           anio: anoReporte
         },
         partidos: partidosFiltrados.map(p => {
-          // Determinar el estado del partido basado en la fecha y hora
+          // Determinar el estado del partido de manera simplificada
           let estado = 'Programado';
-          try {
-            const ahora = new Date();
-            let fechaPartido;
-            
-            if (typeof p.date === 'string') {
-              if (p.date.includes('-')) {
-                // Formato YYYY-MM-DD
-                fechaPartido = new Date(p.date + 'T' + (p.time || '00:00'));
-              } else if (p.date.includes('/')) {
-                // Otros formatos de fecha
-                const partes = p.date.split('/');
-                if (partes.length === 3) {
-                  if (parseInt(partes[0]) > 12) {
-                    // DD/MM/YYYY
-                    fechaPartido = new Date(`${partes[2]}-${partes[1]}-${partes[0]}T${p.time || '00:00'}`);
-                  } else {
-                    // MM/DD/YYYY
-                    fechaPartido = new Date(`${partes[2]}-${partes[0]}-${partes[1]}T${p.time || '00:00'}`);
-                  }
-                }
-              }
-            }
-            
-            if (fechaPartido && !isNaN(fechaPartido)) {
-              // Calcular diferencia en horas
-              const diferenciaMs = ahora - fechaPartido;
-              const diferenciaHoras = diferenciaMs / (1000 * 60 * 60);
-              
-              if (diferenciaHoras < 0) {
-                estado = 'Programado';
-              } else if (diferenciaHoras >= 0 && diferenciaHoras <= 2) {
-                estado = 'En curso';
-              } else {
-                estado = 'Finalizado';
-              }
-            }
-          } catch (error) {
-            console.error('Error al determinar estado del partido:', error);
+          if (p.estado) {
+            estado = p.estado; // Usar el estado ya calculado si está disponible
           }
           
           return {
@@ -537,7 +495,7 @@ export default function DashboardOrganizador() {
             ubicacion: p.location || user.canchaAsignada.direccion || 'Sin ubicación',
             arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email || 'Sin nombre') : 'Sin asignar',
             tieneArbitro: !!p.arbitro,
-            estado: p.estado || estado  // Usar estado calculado
+            estado: estado
           };
         }),
         fechaInicio: `1/${mesNumero}/${anoReporte}`,
@@ -555,492 +513,246 @@ export default function DashboardOrganizador() {
         fechaGeneracion: new Date()
       };
       
-      console.log('Datos del reporte preparados localmente:', reporteData);
-      console.log('Datos del reporte obtenidos:', reporteData);
+      console.log('Datos del reporte preparados:', reporteData);
       
-      // Verificar si la biblioteca jsPDF está disponible
-      console.log('Verificando disponibilidad de jsPDF...');
-      console.log('Estado actual window.jspdf:', typeof window.jspdf);
-      
-      // Intenta usar la versión incluida en el head del documento
-      if (typeof window.jspdf === 'undefined') {
-        console.log('La biblioteca jsPDF no está disponible en window.jspdf, intentando alternativas...');
-        
-        // Verificar si está disponible como window.jsPDF (mayúsculas)
-        if (typeof window.jsPDF === 'object') {
-          console.log('jsPDF encontrado en window.jsPDF');
-          window.jspdf = window.jsPDF;
-        } else {
-          // Si no, cargarla dinámicamente
-          console.log('Cargando biblioteca jsPDF dinámicamente...');
-          try {
-            const jsPDFScript = document.createElement('script');
-            jsPDFScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-            jsPDFScript.crossOrigin = 'anonymous';
-            document.body.appendChild(jsPDFScript);
-            
-            await new Promise((resolve, reject) => {
-              jsPDFScript.onload = resolve;
-              jsPDFScript.onerror = () => reject(new Error('Error al cargar jsPDF'));
-              setTimeout(() => reject(new Error('Timeout al cargar jsPDF')), 10000);
-            });
-            
-            console.log('jsPDF cargado correctamente');
-          } catch (loadError) {
-            console.error('Error cargando jsPDF:', loadError);
-            alert('No se pudo cargar la biblioteca para generar PDFs.');
-            setReporteModal(prevState => ({ ...prevState, cargando: false }));
-            return;
-          }
-        }
-      }
-      
-      // Último intento para acceder a jsPDF
-      // Algunos CDNs lo exponen como window.jspdf y otros como window.jsPDF
-      const jsPDFClass = window.jspdf?.jsPDF || window.jsPDF || window.jspdf;
-      
-      // También intentar cargar HTML2Canvas para gráficos si está disponible
-      // Esto es opcional, si no está disponible el reporte se generará sin gráficas
-      let html2canvas;
-      try {
-        html2canvas = window.html2canvas;
-        console.log('HTML2Canvas encontrado:', !!html2canvas);
-      // eslint-disable-next-line no-unused-vars
-      } catch (error) {
-        console.log('HTML2Canvas no está disponible, continuando sin gráficos avanzados');
-      }
-      
-      if (!jsPDFClass) {
-        console.error('No se pudo acceder a la clase jsPDF');
-        alert('Error: No se pudo inicializar la biblioteca para generar PDFs');
+      // Verificar que jsPDF esté disponible (ya configurado en index.html como window.jsPDF)
+      if (!window.jsPDF) {
+        console.error('Error: jsPDF no está disponible. Asegúrate de que index.html incluye el script de jsPDF.');
+        alert('Error: No se encontró la biblioteca para generar PDFs.');
         setReporteModal(prevState => ({ ...prevState, cargando: false }));
         return;
       }
       
-      console.log('Iniciando generación del PDF con biblioteca jsPDF...');
-      
-      // Primero vamos a verificar qué versión de jsPDF tenemos disponible
-      try {
-        console.log('Versión de jsPDF:', jsPDFClass.version || 'Desconocida');
-      } catch (error) {
-        console.log('No se pudo determinar la versión de jsPDF:', error);
-      }
-      
-      // Inicializar el documento con la forma más simple posible
-      let doc;
-      try {
-        // Usar solo dos parámetros: orientación y unidad
-        doc = new jsPDFClass('portrait', 'mm');
-        console.log('PDF inicializado correctamente con formato portrait y mm');
-      } catch (pdfInitError) {
-        console.error('Error al inicializar jsPDF con orientación y unidad:', pdfInitError);
-        try {
-          // Último recurso: sin parámetros
-          doc = new jsPDFClass();
-          console.log('PDF inicializado sin parámetros');
-        } catch (fallbackError) {
-          console.error('Error en fallback de jsPDF:', fallbackError);
-          alert('Error al inicializar el generador de PDF. Por favor, intenta con otro navegador.');
-          setReporteModal(prevState => ({ ...prevState, cargando: false }));
-          return;
-        }
-      }
+      // Crear un nuevo documento PDF (formato A4 vertical)
+      const doc = new window.jsPDF();
       
       // Configuración de página
-      const pageWidth = doc.internal.pageSize.width;
-      const pageHeight = doc.internal.pageSize.height;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 15;
       
-      // Función para añadir un fondo con color sólido 
-      // (reemplazamos el degradado que causaba el error)
-      function addGradientBackground() {
-        // Usar color sólido en lugar de degradado
-        doc.setFillColor('#f0f9f0');  // Verde muy claro
-        doc.rect(0, 0, pageWidth, pageHeight, 'F');
-      }
+      // CABECERA DEL DOCUMENTO
+      // Fondo de color para el encabezado
+      doc.setFillColor(26, 93, 26); // Verde oscuro
+      doc.rect(0, 0, pageWidth, 25, 'F');
       
-      // Función para añadir un encabezado con estilo
-      function addStyledHeader() {
-        try {
-          // Banner superior con color sólido
-          doc.setFillColor(26, 93, 26); // RGB para #1a5d1a (verde oscuro)
-          doc.rect(0, 0, pageWidth, 25, 'F');
-          
-          // Título principal
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(255, 255, 255);  // Blanco en RGB
-          doc.setFontSize(22);
-          doc.text('RefZone - Reporte de Partidos', pageWidth/2, 16, { align: 'center' });
-        } catch (headerError) {
-          console.error("Error en addStyledHeader:", headerError);
-          // Header alternativo simple
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(0, 0, 0);
-          doc.setFontSize(22);
-          doc.text('RefZone - Reporte de Partidos', pageWidth/2, 16, { align: 'center' });
-        }
-      }
+      // Título del reporte
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255); // Texto blanco
+      doc.setFontSize(22);
+      doc.text('RefZone - Reporte de Partidos', pageWidth / 2, 16, { align: 'center' });
       
-      // Añadir fondo y encabezado
-      addGradientBackground();
-      addStyledHeader();
+      // Nombre de la cancha
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(26, 93, 26); // Verde oscuro
+      doc.setFontSize(18);
+      doc.text(reporteData.cancha.nombre, pageWidth / 2, margin + 20, { align: 'center' });
       
-      try {
-        // Subtítulo con el nombre de la cancha
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(26, 93, 26);  // Verde oscuro para el nombre de la cancha (#1a5d1a en RGB)
-        doc.setFontSize(18);
-        
-        // Calcular posición central
-        const canchaNombre = reporteData.cancha.nombre || 'Cancha';
-        const textWidth = doc.getStringUnitWidth(canchaNombre) * 18 / doc.internal.scaleFactor;
-        const textX = (pageWidth - textWidth) / 2;
-        doc.text(canchaNombre, textX, margin + 20);
-        
-        // Período
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(51, 51, 51); // #333333 en RGB
-        doc.setFontSize(12);
-        
-        const periodoTexto = `${reporteData.periodo.mes} de ${reporteData.periodo.anio}`;
-        const periodoWidth = doc.getStringUnitWidth(periodoTexto) * 12 / doc.internal.scaleFactor;
-        const periodoX = (pageWidth - periodoWidth) / 2;
-        doc.text(periodoTexto, periodoX, margin + 30);
-      } catch (headerError) {
-        console.error("Error al generar encabezados:", headerError);
-      }
+      // Periodo del reporte
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(51, 51, 51); // Gris oscuro
+      doc.setFontSize(12);
+      doc.text(`${reporteData.periodo.mes} de ${reporteData.periodo.anio}`, pageWidth / 2, margin + 30, { align: 'center' });
       
-      // Línea decorativa
-      doc.setDrawColor('#1a5d1a');
+      // Línea separadora
+      doc.setDrawColor(26, 93, 26); // Verde oscuro
       doc.setLineWidth(0.5);
-      doc.line(margin, margin + 38, pageWidth - margin, margin + 38);
+      doc.line(margin, margin + 35, pageWidth - margin, margin + 35);
       
-      // Sección de información de la cancha
+      // INFORMACIÓN DE LA CANCHA
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
-      doc.text('Información de la cancha:', margin, margin + 50);
+      doc.setTextColor(51, 51, 51); // Gris oscuro
+      doc.text('Información de la cancha:', margin, margin + 45);
       
-      // Cuadro sombreado para la información
-      doc.setFillColor('#f9f9f9');
-      doc.setDrawColor('#cccccc');
-      doc.roundedRect(margin, margin + 55, pageWidth - (margin*2), 35, 3, 3, 'FD');
+      // Cuadro para la información
+      doc.setFillColor(249, 249, 249); // Gris muy claro
+      doc.setDrawColor(204, 204, 204); // Gris claro
+      doc.roundedRect(margin, margin + 50, pageWidth - (margin * 2), 35, 3, 3, 'FD');
       
+      // Detalles de la cancha
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      doc.text(`Dirección: ${reporteData.cancha.direccion}`, margin + 5, margin + 65);
-      doc.text(`Contacto: ${reporteData.cancha.telefono}`, margin + 5, margin + 75);
-      doc.text(`Email: ${reporteData.cancha.email}`, margin + 5, margin + 85);
+      doc.setTextColor(51, 51, 51); // Gris oscuro
+      doc.text(`Dirección: ${reporteData.cancha.direccion}`, margin + 5, margin + 60);
+      doc.text(`Contacto: ${reporteData.cancha.telefono}`, margin + 5, margin + 70);
+      doc.text(`Email: ${reporteData.cancha.email}`, margin + 5, margin + 80);
       
-      // Sección de resumen con gráfica
+      // ESTADÍSTICAS DEL REPORTE
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
-      doc.text('Resumen del período:', margin, margin + 105);
+      doc.text('Resumen del período:', margin, margin + 100);
       
-      // Cuadro para estadísticas con un estilo moderno
-      const statsX = margin;
-      const statsY = margin + 110;
-      const statsWidth = (pageWidth - (margin*2)) / 4;
-      const statsHeight = 40;
+      // Estadísticas básicas
+      const yStats = margin + 110;
       
-      // Función para crear una caja de estadística
-      function addStatBox(x, y, width, height, label, value, color) {
-        doc.setFillColor(color);
-        doc.roundedRect(x, y, width - 5, height, 3, 3, 'F');
-        
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor('#ffffff');
-        doc.text(label, x + width/2 - 2.5, y + 10, { align: 'center' });
-        
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        doc.text(value.toString(), x + width/2 - 2.5, y + 28, { align: 'center' });
-      }
+      // Total de partidos
+      doc.setFillColor(26, 93, 26); // Verde oscuro
+      doc.roundedRect(margin, yStats, 40, 25, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255); // Blanco
+      doc.setFontSize(9);
+      doc.text('Total partidos', margin + 20, yStats + 10, { align: 'center' });
+      doc.setFontSize(16);
+      doc.text(reporteData.estadisticas.total.toString(), margin + 20, yStats + 20, { align: 'center' });
       
-      // Añadir cajas de estadísticas
-      addStatBox(statsX, statsY, statsWidth, statsHeight, 'Total de partidos', reporteData.estadisticas.total, '#1a5d1a');
-      addStatBox(statsX + statsWidth, statsY, statsWidth, statsHeight, 'Con árbitro', reporteData.estadisticas.conArbitro, '#4CAF50');
-      addStatBox(statsX + statsWidth*2, statsY, statsWidth, statsHeight, 'Sin árbitro', reporteData.estadisticas.sinArbitro, '#FF9800');
+      // Con árbitro
+      doc.setFillColor(76, 175, 80); // Verde
+      doc.roundedRect(margin + 50, yStats, 40, 25, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255); // Blanco
+      doc.setFontSize(9);
+      doc.text('Con árbitro', margin + 70, yStats + 10, { align: 'center' });
+      doc.setFontSize(16);
+      doc.text(reporteData.estadisticas.conArbitro.toString(), margin + 70, yStats + 20, { align: 'center' });
       
-      // Añadir estado si está disponible
-      const estadosDisponibles = 'programados' in reporteData.estadisticas;
-      if (estadosDisponibles) {
-        addStatBox(statsX + statsWidth*3, statsY, statsWidth, statsHeight, 'Finalizados', 
-          reporteData.estadisticas.finalizados + reporteData.estadisticas.cancelados, '#2196F3');
-      }
+      // Sin árbitro
+      doc.setFillColor(255, 152, 0); // Naranja
+      doc.roundedRect(margin + 100, yStats, 40, 25, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255); // Blanco
+      doc.setFontSize(9);
+      doc.text('Sin árbitro', margin + 120, yStats + 10, { align: 'center' });
+      doc.setFontSize(16);
+      doc.text(reporteData.estadisticas.sinArbitro.toString(), margin + 120, yStats + 20, { align: 'center' });
       
-      // Agregar una simple insignia de RefZone en lugar del QR code
-      try {
-        // Recuadro simple
-        doc.setFillColor(240, 249, 240); // #f0f9f0
-        doc.setDrawColor(26, 93, 26); // #1a5d1a
-        doc.roundedRect(pageWidth - 60, 35, 45, 25, 3, 3, 'FD');
-        
-        // Texto de la insignia
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.setTextColor(26, 93, 26); // #1a5d1a
-        doc.text('RefZone', pageWidth - 37.5, 48, { align: 'center' });
-        
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6);
-        doc.text('Sistema de Gestión Deportiva', pageWidth - 37.5, 55, { align: 'center' });
-      } catch (badgeError) {
-        console.error("Error al crear insignia:", badgeError);
-        // No hacemos nada si falla, simplemente omitimos la insignia
-      }
+      // Finalizados
+      doc.setFillColor(33, 150, 243); // Azul
+      doc.roundedRect(margin + 150, yStats, 40, 25, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255); // Blanco
+      doc.setFontSize(9);
+      doc.text('Finalizados', margin + 170, yStats + 10, { align: 'center' });
+      doc.setFontSize(16);
+      doc.text(reporteData.estadisticas.finalizados.toString(), margin + 170, yStats + 20, { align: 'center' });
       
-      // Tabla de partidos
+      // TABLA DE PARTIDOS
       if (reporteData.partidos && reporteData.partidos.length > 0) {
-        try {
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(51, 51, 51); // #333333 en RGB
-          doc.setFontSize(12);
-          // Forma simplificada sin opciones de alineación
-          doc.text('Lista de partidos:', margin, margin + 165);
-        } catch (error) {
-          console.error("Error al escribir título de la lista:", error);
-        }
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(51, 51, 51); // Gris oscuro
+        doc.text('Lista de partidos:', margin, margin + 150);
         
-        // Crear tabla con diseño moderno
-        const tableTop = margin + 175;
+        // Tabla con diseño simplificado
+        const tableTop = margin + 160;
         let y = tableTop;
         
-        // Encabezados de tabla con fondo
-        doc.setFillColor('#1a5d1a');
-        doc.rect(margin, y, pageWidth - margin*2, 12, 'F');
+        // Encabezados
+        doc.setFillColor(26, 93, 26); // Verde oscuro
+        doc.rect(margin, y, pageWidth - margin * 2, 10, 'F');
         
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
-        doc.setTextColor('#ffffff');
+        doc.setTextColor(255, 255, 255); // Blanco
         
-        // Columnas
-        const colWidths = [30, 40, 25, 30, 35, 30]; // Fecha, Nombre, Hora, Ubicación, Árbitro, Estado
-        let xPos = margin + 3;
+        // Columnas de la tabla
+        const col1 = margin + 3;        // Fecha
+        const col2 = margin + 30;       // Nombre
+        const col3 = margin + 85;       // Hora
+        const col4 = margin + 110;      // Ubicación
+        const col5 = margin + 150;      // Árbitro
         
-        doc.text('Fecha', xPos, y + 8);
-        xPos += colWidths[0];
+        doc.text('Fecha', col1, y + 6);
+        doc.text('Nombre', col2, y + 6);
+        doc.text('Hora', col3, y + 6);
+        doc.text('Ubicación', col4, y + 6);
+        doc.text('Árbitro', col5, y + 6);
         
-        doc.text('Nombre', xPos, y + 8);
-        xPos += colWidths[1];
+        y += 10; // Avanzar a la primera fila de datos
         
-        doc.text('Hora', xPos, y + 8);
-        xPos += colWidths[2];
-        
-        doc.text('Ubicación', xPos, y + 8);
-        xPos += colWidths[3];
-        
-        doc.text('Árbitro', xPos, y + 8);
-        xPos += colWidths[4];
-        
-        doc.text('Estado', xPos, y + 8);
-        
-        y += 12; // Avanzar a la primera fila de datos
-        
-        // Formatear fechas y horas
+        // Función para formatear fecha
         function formatDate(dateStr) {
+          if (!dateStr) return 'N/A';
+          
           try {
-            const parts = dateStr.includes('-') 
-              ? dateStr.split('-') 
-              : dateStr.split('/');
-            
-            if (parts.length === 3) {
-              // Asumimos YYYY-MM-DD o DD/MM/YYYY
-              if (dateStr.includes('-')) {
-                return `${parts[2].split('T')[0]}/${parts[1]}/${parts[0]}`;
-              } else {
-                return dateStr;
-              }
+            if (dateStr.includes('-')) {
+              const [año, mes, dia] = dateStr.split('-');
+              return `${dia.split('T')[0]}/${mes}/${año}`;
+            } else if (dateStr.includes('/')) {
+              return dateStr;
             }
             return dateStr;
-          // eslint-disable-next-line no-unused-vars
-          } catch (_) {
-            // Ignorar errores y devolver la cadena original
+          } catch {
             return dateStr;
           }
         }
         
-        // Función para formatear hora
-        function formatTime(time) {
-          if (!time) return '';
-          const [h, m] = time.split(':');
-          const hour = parseInt(h);
-          return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
-        }
-        
-        // Función para determinar el color del estado
-        function getStatusColor(estado) {
-          switch (estado?.toLowerCase()) {
-            case 'programado': return '#4CAF50'; // Verde
-            case 'en curso': return '#2196F3';   // Azul
-            case 'finalizado': return '#607D8B'; // Gris azulado
-            case 'cancelado': return '#F44336';  // Rojo
-            default: return '#9E9E9E';           // Gris (por defecto)
-          }
-        }
-        
-        // Altura de las filas de la tabla
-        const rowHeight = 10;
+        // Altura de fila
+        const rowHeight = 8;
         
         // Dibujar filas de datos
-        doc.setTextColor('#333333');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(51, 51, 51); // Gris oscuro
         
         for (const partido of reporteData.partidos) {
           // Nueva página si no hay espacio
-          if (y > pageHeight - margin - rowHeight) {
+          if (y > pageHeight - margin - 20) {
             doc.addPage();
-            addGradientBackground(); // Mantener el fondo en la nueva página
             y = margin + 20;
             
-            // Encabezados en nueva página
-            doc.setFillColor('#1a5d1a');
-            doc.rect(margin, y, pageWidth - margin*2, 12, 'F');
+            // Repetir encabezados en la nueva página
+            doc.setFillColor(26, 93, 26); // Verde oscuro
+            doc.rect(margin, y, pageWidth - margin * 2, 10, 'F');
             
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
-            doc.setTextColor('#ffffff');
+            doc.setTextColor(255, 255, 255); // Blanco
             
-            // Columnas
-            let xPos = margin + 3;
+            doc.text('Fecha', col1, y + 6);
+            doc.text('Nombre', col2, y + 6);
+            doc.text('Hora', col3, y + 6);
+            doc.text('Ubicación', col4, y + 6);
+            doc.text('Árbitro', col5, y + 6);
             
-            doc.text('Fecha', xPos, y + 8);
-            xPos += 30;
-            
-            doc.text('Nombre', xPos, y + 8);
-            xPos += 40;
-            
-            doc.text('Hora', xPos, y + 8);
-            xPos += 25;
-            
-            doc.text('Ubicación', xPos, y + 8);
-            xPos += 30;
-            
-            doc.text('Árbitro', xPos, y + 8);
-            xPos += 35;
-            
-            doc.text('Estado', xPos, y + 8);
-            
-            y += 12;
+            y += 10;
           }
           
           // Alternar colores de fondo para las filas
-          const isEvenRow = reporteData.partidos.indexOf(partido) % 2 === 0;
-          doc.setFillColor(isEvenRow ? '#f9f9f9' : '#ffffff');
-          doc.rect(margin, y, pageWidth - margin*2, rowHeight, 'F');
+          const isEven = reporteData.partidos.indexOf(partido) % 2 === 0;
+          doc.setFillColor(isEven ? 249 : 255, isEven ? 249 : 255, isEven ? 249 : 255);
+          doc.rect(margin, y, pageWidth - margin * 2, rowHeight, 'F');
           
           // Datos del partido
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
-          doc.setTextColor('#333333');
+          doc.setTextColor(51, 51, 51); // Gris oscuro
           
-          let xPos = margin + 3;
-          
-          // Fecha
-          doc.text(formatDate(partido.fecha), xPos, y + 6);
-          xPos += 30;
-          
-          // Nombre (truncar si es muy largo)
-          const nombrePartido = partido.nombre?.length > 15 
-            ? partido.nombre.substring(0, 15) + '...' 
-            : partido.nombre || 'Sin nombre';
-          doc.text(nombrePartido, xPos, y + 6);
-          xPos += 40;
-          
-          // Hora
-          doc.text(formatTime(partido.hora), xPos, y + 6);
-          xPos += 25;
-          
-          // Ubicación (truncar si es muy larga)
-          const ubicacion = partido.ubicacion?.length > 12
-            ? partido.ubicacion.substring(0, 12) + '...'
-            : partido.ubicacion || 'Sin ubicación';
-          doc.text(ubicacion, xPos, y + 6);
-          xPos += 30;
-          
-          // Árbitro
-          doc.text(partido.arbitro || 'Sin asignar', xPos, y + 6);
-          xPos += 35;
-          
-          // Estado con color
-          const estado = partido.estado || 'Programado';
-          const statusColor = getStatusColor(estado);
-          
-          // Fondo para el estado
-          doc.setFillColor(statusColor);
-          doc.roundedRect(xPos - 2, y + 1, 25, 7, 1, 1, 'F');
-          
-          // El texto del estado puede estar causando el problema, usaremos texto simple sin opciones
-          try {
-            doc.setTextColor(255, 255, 255); // Blanco en RGB
-            doc.setFontSize(7);
-            doc.setFont('helvetica', 'bold');
-            // Usar forma simple de texto sin opciones
-            const estadoTexto = estado || 'Programado';
-            doc.text(estadoTexto, xPos + 10 - (estadoTexto.length * 1.2), y + 6);
-          } catch (textError) {
-            console.error('Error al mostrar estado:', textError);
-          }
-          
-          // Restaurar color de texto
-          doc.setTextColor(51, 51, 51); // #333333 en RGB
+          doc.text(formatDate(partido.fecha), col1, y + 5);
+          doc.text(partido.nombre || 'Sin nombre', col2, y + 5);
+          doc.text(partido.hora || 'N/A', col3, y + 5);
+          doc.text(partido.ubicacion || 'N/A', col4, y + 5);
+          doc.text(partido.arbitro || 'Sin asignar', col5, y + 5);
           
           y += rowHeight;
         }
       } else {
+        // Mensaje si no hay partidos
         doc.setFont('helvetica', 'italic');
-        doc.setTextColor('#666666');
+        doc.setTextColor(102, 102, 102); // Gris medio
         doc.setFontSize(11);
-        doc.text('No hay partidos registrados para este período.', margin, margin + 180);
+        doc.text('No hay partidos registrados para este período.', margin, margin + 150);
       }
       
-      // Agregar pie de página con diseño mejorado
-      try {
-        const fechaGeneracion = new Date();
-        const fechaStr = `${fechaGeneracion.getDate()}/${fechaGeneracion.getMonth() + 1}/${fechaGeneracion.getFullYear()} ${fechaGeneracion.getHours()}:${String(fechaGeneracion.getMinutes()).padStart(2, '0')}:${String(fechaGeneracion.getSeconds()).padStart(2, '0')}`;
-        
-        // Línea separadora
-        doc.setDrawColor(26, 93, 26); // #1a5d1a en RGB
-        doc.setLineWidth(0.5);
-        doc.line(margin, pageHeight - 20, pageWidth - margin, pageHeight - 20);
-        
-        // Texto del pie de página
-        doc.setFont('helvetica', 'italic');
-        doc.setFontSize(8);
-        doc.setTextColor(102, 102, 102); // #666666 en RGB
-        doc.text(`Reporte generado el ${fechaStr}`, pageWidth/2, pageHeight - 15, { align: 'center' });
-        
-        // Logo o texto de la app
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(26, 93, 26); // #1a5d1a en RGB
-        doc.text('RefZone - Sistema de Gestión Deportiva', pageWidth/2, pageHeight - 7, { align: 'center' });
-      } catch (footerError) {
-        console.error("Error al crear pie de página:", footerError);
-        // Pie de página simplificado si falla el original
-        try {
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(0);
-          doc.text(`Reporte generado por RefZone ${new Date().toLocaleDateString()}`, pageWidth/2, pageHeight - 10, { align: 'center' });
-        // eslint-disable-next-line no-unused-vars
-        } catch (error) {
-          // Ignorar si también falla el pie simplificado
-        }
-      }
+      // PIE DE PÁGINA
+      // Línea separadora
+      doc.setDrawColor(26, 93, 26); // Verde oscuro
+      doc.setLineWidth(0.5);
+      doc.line(margin, pageHeight - 20, pageWidth - margin, pageHeight - 20);
       
-      // Guardar el PDF con un nombre descriptivo
-      try {
-        const nombreArchivo = `reporte-partidos-${reporteData.cancha.nombre.replace(/\s+/g, '-')}-${mesNombre}-${anoReporte}.pdf`;
-        doc.save(nombreArchivo);
-        
-        // Cerrar modal
-        setReporteModal(prevState => ({ ...prevState, open: false, cargando: false }));
-        
-        console.log('Reporte PDF generado correctamente');
-      } catch (pdfError) {
-        console.error('Error al guardar PDF:', pdfError);
-        alert('Error al guardar el PDF. Verifica los permisos de tu navegador e inténtalo de nuevo.');
-        setReporteModal(prevState => ({ ...prevState, cargando: false }));
-      }
+      // Texto del pie
+      const fechaStr = new Date().toLocaleDateString();
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(102, 102, 102); // Gris medio
+      doc.text(`Reporte generado el ${fechaStr}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(26, 93, 26); // Verde oscuro
+      doc.text('RefZone - Sistema de Gestión Deportiva', pageWidth / 2, pageHeight - 7, { align: 'center' });
+      
+      // Guardar el PDF
+      const nombreArchivo = `reporte-partidos-${reporteData.cancha.nombre.replace(/\s+/g, '-')}-${mesNombre}-${anoReporte}.pdf`;
+      doc.save(nombreArchivo);
+      
+      // Cerrar modal
+      setReporteModal(prevState => ({ ...prevState, open: false, cargando: false }));
+      console.log('Reporte PDF generado correctamente');
     } catch (error) {
       console.error('Error al generar reporte:', error);
       alert(`Error al generar el reporte: ${error.message || 'Error desconocido'}. Inténtalo de nuevo.`);
