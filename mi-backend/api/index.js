@@ -9,6 +9,7 @@ const session = require('express-session');
 const authRoutes = require('../routes/auth');
 const gameRoutes = require('../routes/gameRoutes');
 const reporteRoutes = require('../routes/reporteRoutes');
+const ubicacionRoutes = require('../routes/ubicacionRoutes');
 
 // Crear app Express
 const app = express();
@@ -80,6 +81,23 @@ app.get('/csrf-token', (req, res) => {
     });
 });
 
+// Middleware para advertencia de Self-XSS
+app.get('/self-xss-warning.js', (req, res) => {
+    res.type('application/javascript');
+    res.send(`
+        console.log('%c¡Advertencia!', 'color: red; font-size: 20px;');
+        console.log('No pegues código aquí. Podrías ser víctima de un ataque.');
+    `);
+});
+
+app.get('/api/self-xss-warning.js', (req, res) => {
+    res.type('application/javascript');
+    res.send(`
+        console.log('%c¡Advertencia!', 'color: red; font-size: 20px;');
+        console.log('No pegues código aquí. Podrías ser víctima de un ataque.');
+    `);
+});
+
 // Rutas de autenticación
 app.use('/api/auth', authRoutes);
 app.use('/auth', authRoutes); // También sin el prefijo /api
@@ -94,6 +112,10 @@ app.use('/api/usuarios', authRoutes);
 // AÑADIR: Ruta para canchas
 app.use('/api/canchas', require('../routes/canchaRoutes'));
 app.use('/canchas', require('../routes/canchaRoutes'));
+
+// AÑADIR: Ruta para ubicaciones
+app.use('/api/ubicaciones', ubicacionRoutes);
+app.use('/ubicaciones', ubicacionRoutes);
 
 // AÑADIR: Ruta para reportes PDF
 app.use('/api/reportes', require('../routes/reporteRoutes'));
