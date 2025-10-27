@@ -1736,12 +1736,8 @@ export default function DashboardOrganizador() {
                   </div>
                 </div>
                 <div className="hidden md:block">
-                  <p className="text-sm font-medium text-gray-800">{user?.nombre || user?.name || "Administrador"}</p>
-                  <p className="text-xs text-gray-600">
-                    {user?.canchaAsignada?.nombre 
-                      ? `Organizador - ${user.canchaAsignada.nombre}` 
-                      : 'Organizador'}
-                  </p>
+                  <p className="text-sm font-medium text-gray-800">{user?.nombre || user?.name || "Admin"}</p>
+                  <p className="text-xs text-gray-600">Organizador</p>
                 </div>
               </div>
               
