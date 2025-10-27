@@ -41,16 +41,22 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter,
 }
 
 .profile__pic {
-  width: 50px; /* Ajusta el tamaño si es necesario */
+  width: 50px;
   height: 50px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.1);
   object-fit: cover;
+  flex-shrink: 0; /* Evita que la imagen se comprima */
+  aspect-ratio: 1/1; /* Mantiene proporción cuadrada */
 }
 
 .profile__name {
   font-weight: 600;
   color: var(--text);
+  white-space: nowrap; /* Evita saltos de línea en el nombre */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px; /* Limita el ancho máximo */
 }
 
 .btn--logout {
@@ -164,3 +170,73 @@ a:hover { text-decoration: underline; }
 
 /* Fuerza el fondo en TODA la página (una sola línea) */
 html, body, #root, .app { background :#0b1020 !important; }
+
+/* ========================================
+   MEJORAS RESPONSIVE PARA MODALES
+   ======================================== */
+
+/* Modal de Postulados - Mejor diseño y responsive */
+.modal-overlay .modal-content {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Scroll suave en iOS */
+}
+
+/* Ajustes responsive para móviles */
+@media (max-width: 640px) {
+  .modal-content {
+    margin: 10px;
+    max-width: calc(100% - 20px);
+  }
+  
+  .modal-header h3 {
+    font-size: 1.25rem;
+  }
+  
+  .profile {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .profile__name {
+    max-width: 120px;
+    font-size: 0.9rem;
+  }
+  
+  .topbar__actions {
+    gap: 8px;
+    padding: 0 12px;
+  }
+  
+  .btn--logout {
+    font-size: 0.8rem;
+    padding: 5px 10px;
+  }
+}
+
+/* Mejoras para navbar en todos los dispositivos */
+.topbar .brand {
+  flex-wrap: nowrap; /* Nunca permite que se envuelvan */
+  align-items: center;
+}
+
+.topbar__actions {
+  min-height: 60px; /* Altura mínima consistente */
+  align-items: center;
+}
+
+.profile {
+  min-width: 0; /* Permite compresión si es necesario */
+}
+
+/* Asegura que la imagen nunca se deforme */
+.profile__pic,
+.brand__logo {
+  object-fit: cover;
+  object-position: center;
+}

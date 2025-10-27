@@ -239,4 +239,47 @@
   .stadium-lights {
     @apply absolute top-2 left-2 right-2 h-1 bg-gradient-to-r from-yellow-300 via-white to-yellow-300 rounded-full opacity-60;
   }
+  
+  /* ========================================
+     FIX: Imágenes de perfil responsive
+     ======================================== */
+  
+  /* Asegura que todas las imágenes redondas mantengan su proporción */
+  img.rounded-full,
+  .rounded-full img {
+    object-fit: cover;
+    object-position: center;
+    aspect-ratio: 1/1;
+    flex-shrink: 0;
+  }
+  
+  /* Fix específico para el header del Dashboard árbitro */
+  header img.rounded-full {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+  }
+  
+  /* Fix para modales responsive */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4;
+  }
+  
+  .modal-content {
+    @apply bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto;
+  }
+  
+  @media (max-width: 640px) {
+    .modal-content {
+      @apply m-2 max-w-[calc(100%-1rem)];
+    }
+    
+    header img.rounded-full {
+      width: 2.25rem !important;
+      height: 2.25rem !important;
+    }
+    
+    header .hidden.md\\:block {
+      @apply hidden;
+    }
+  }
 }

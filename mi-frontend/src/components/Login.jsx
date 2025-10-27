@@ -1,12 +1,10 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import logger from "../utils/logger";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,8 +33,11 @@ export default function Login() {
           }
         }
         
-        // Navegación directa sin validación adicional
-        navigate(data.redirect, { replace: true });
+        // Pequeño delay antes de navegar para asegurar que todo se guarde
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Navegación directa con replace
+        window.location.href = data.redirect; // Forzar navegación completa
       } else {
         alert(data.message || "Error al iniciar sesión");
         setIsLoading(false);
