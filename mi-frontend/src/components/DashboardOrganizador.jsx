@@ -1708,10 +1708,8 @@ export default function DashboardOrganizador() {
                 <div>
                   <h1 className="text-xl font-display font-bold text-gray-800">RefZone Admin</h1>
                   <p className="text-sm text-gray-600">
-                    {user?.canchaAsignada ? (
+                    {user?.canchaAsignada && (
                       <span className="text-green-600 font-medium">{user.canchaAsignada.nombre}</span>
-                    ) : (
-                      "Panel de Organizador"
                     )}
                   </p>
                 </div>
