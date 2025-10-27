@@ -277,9 +277,5 @@
       width: 2.25rem !important;
       height: 2.25rem !important;
     }
-    
-    header .hidden.md\\:block {
-      @apply hidden;
-    }
   }
 }
