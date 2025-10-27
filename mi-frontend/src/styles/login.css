@@ -1,0 +1,293 @@
+:root {
+    --primary-color: #6467bd; /* Deep blue for main elements */
+    --secondary-color: #159895; /* Teal for accents */
+    --background-color: #002B5B; /* Dark blue for background */
+    --text-color: #ffffff; /* White for text */
+    --error-color: #EA4335; /* Red for errors */
+    --field-color: #ffffff; /* Light teal for field elements */
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Arial', sans-serif;
+}
+
+body, html {
+    height: 100%;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+}
+
+.login-bg {
+    min-height: 100vh;
+    min-width: 100vw;
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background-image: url('../img/fondo.jpg');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-attachment: fixed;
+    z-index: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.page-container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.content-area {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+}
+
+.login-box {
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    position: relative;
+}
+
+.login-box::before {
+    content: '⚽';
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 40px;
+    color: var(--text-color);
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+h2 {
+    color: var(--text-color);
+    margin-bottom: 1.5rem;
+    text-align: center;
+    font-size: 2rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+.textbox {
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.textbox input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    background-color: var(--field-color);
+    color: var(--background-color);
+    transition: all 0.3s ease;
+}
+
+.textbox input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--secondary-color);
+}
+
+.textbox input::placeholder {
+    color: rgba(0, 43, 91, 0.7);
+}
+
+button {
+    width: 100%;
+    padding: 0.75rem;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: var(--primary-color);
+    color: var(--text-color);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: bold;
+    margin-top: 1rem;
+}
+
+button:hover {
+    background-color: var(--secondary-color);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+button::after {
+    content: '🥅';
+    margin-left: 10px;
+}
+
+.login-link {
+    text-align: center;
+    margin-top: 1rem;
+    color: var(--text-color);
+}
+
+.login-link a {
+    color: #ca0a0a;
+    text-decoration: none;
+    font-weight: bold;
+    transition: color 0.3s ease;
+}
+
+.login-link a:hover {
+    color: var(--field-color);
+}
+
+/* Football field lines */
+.login-box::after {
+    content: '';
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    height: 2px;
+    background: repeating-linear-gradient(
+        to right,
+        var(--text-color),
+        var(--text-color) 10px,
+        transparent 10px,
+        transparent 20px
+    );
+}
+
+@media (max-width: 768px) {
+    .page-container {
+        flex-direction: column;
+    }
+
+    .content-area {
+        order: 2;
+    }
+
+    .login-box {
+        width: 90%;
+        padding: 1.5rem;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+
+    .textbox input {
+        font-size: 0.9rem;
+        padding: 0.5rem;
+    }
+
+    button {
+        font-size: 0.9rem;
+        padding: 0.5rem;
+    }
+}
+
+/* Estilos para tablets */
+@media (max-width: 1024px) {
+  .login-box {
+    width: 80%;
+    padding: 2rem;
+  }
+
+  h2 {
+    font-size: 1.8rem;
+  }
+
+  .textbox input {
+    font-size: 1rem;
+    padding: 0.75rem;
+  }
+
+  button {
+    font-size: 1rem;
+    padding: 0.75rem;
+  }
+}
+
+.button-group {
+    display: flex;
+    flex-direction: column; /* Botones en columna */
+    gap: 1rem; /* Espaciado uniforme entre los botones */
+    margin-top: 1.5rem;
+}
+
+button, .btn-google {
+    width: 100%; /* Asegura que ambos tengan el mismo ancho */
+    padding: 0.75rem;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: bold;
+}
+
+button {
+    background-color: var(--primary-color);
+    color: var(--text-color);
+}
+
+button:hover {
+    background-color: var(--secondary-color);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn-google {
+    background-color: #6467bd; /* Azul de Google */
+    color: var(--text-color);
+    text-decoration: none; /* Quita el subrayado */
+    display: inline-block; /* Asegura que se comporte como botón */
+    text-align: center;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.btn-google:hover {
+    background-color: #6467bd; /* Azul más oscuro al pasar el cursor */
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    text-decoration: none; /* Asegura que no regrese el subrayado */
+}
+
+
+
+/* Additional styles for number input */
+input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}

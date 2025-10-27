@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Environment variables - CRÍTICO
+.env
+.env.local
+.env.production
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+
+# Coverage directory
+coverage/
+
+# Database files
+*.db
+*.sqlite
+
+# Build outputs
+dist/
+build/
+
+# Temporary files
+*.tmp
+.env
+.env.local
