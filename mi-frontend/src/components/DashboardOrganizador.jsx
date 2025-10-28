@@ -576,6 +576,7 @@ export default function DashboardOrganizador() {
       date: game?.date ? String(game.date).split("T")[0] : "",
       time: game?.time || "",
       location: game?.location || "",
+      ubicacionId: game?.ubicacionId?._id || game?.ubicacionId || "",
     });
     setEditingId(game?._id || null);
     setModalTitle("Editar Partido");
