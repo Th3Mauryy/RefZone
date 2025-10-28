@@ -58,7 +58,7 @@ router.post('/registro', upload.single('imagenPerfil'), async (req, res) => {
         const normalizedEmail = email.trim().toLowerCase();
         const existingUser = await User.findOne({ email: normalizedEmail }).select('_id').lean();
         if (existingUser) {
-            return res.status(400).json({ message: 'El email ya está registrado' });
+            return res.status(409).json({ message: 'El email ya está registrado' });
         }
 
         // Crear usuario (imagen ya subida por multer)
@@ -82,7 +82,7 @@ router.post('/registro', upload.single('imagenPerfil'), async (req, res) => {
     } catch (error) {
         console.error('Error registro:', error.message);
         if (error.code === 11000) {
-            return res.status(400).json({ message: 'El email ya está registrado' });
+            return res.status(409).json({ message: 'El email ya está registrado' });
         }
         res.status(500).json({ message: 'Error interno del servidor' });
     }
@@ -102,7 +102,7 @@ router.post('/login', async (req, res) => {
         if (!user) {
             // LOG: Intento fallido - usuario no existe
             logAuthAttempt(req, false, 'Usuario no encontrado');
-            return res.status(400).json({ message: 'Credenciales inválidas' });
+            return res.status(401).json({ message: 'Credenciales inválidas' });
         }
 
         // Verificar contraseña directamente
@@ -110,7 +110,7 @@ router.post('/login', async (req, res) => {
         if (!isPasswordValid) {
             // LOG: Intento fallido - contraseña incorrecta
             logAuthAttempt(req, false, 'Contraseña incorrecta');
-            return res.status(400).json({ message: 'Credenciales inválidas' });
+            return res.status(401).json({ message: 'Credenciales inválidas' });
         }
 
         // LOG: Login exitoso
@@ -212,6 +212,38 @@ router.post('/logout', (req, res) => {
         }
         res.status(200).json({ message: 'Sesión cerrada con éxito' });
     });
+});
+
+/**
+ * Ruta para listar todos los usuarios
+ * Requiere autenticación (token válido)
+ * Devuelve array de usuarios sin contraseñas
+ */
+router.get('/usuarios', verifyToken, async (req, res) => {
+    try {
+        console.log('📋 Listando usuarios - Solicitado por:', req.user.id);
+        
+        // Obtener todos los usuarios sin incluir la contraseña ni datos internos
+        const usuarios = await User.find()
+            .select('-password -__v')
+            .lean()
+            .exec();
+        
+        console.log(`✅ ${usuarios.length} usuarios encontrados`);
+        
+        res.status(200).json({
+            success: true,
+            count: usuarios.length,
+            usuarios: usuarios
+        });
+    } catch (error) {
+        console.error('❌ Error al listar usuarios:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Error al obtener la lista de usuarios',
+            error: error.message 
+        });
+    }
 });
 
 // Ruta para obtener el perfil del usuario
@@ -431,7 +463,7 @@ router.post('/register', upload.single('imagenPerfil'), async (req, res) => {
         // Verificar si el usuario ya existe
         const existingUser = await User.findOne({ email: req.body.email });
         if (existingUser) {
-            return res.status(400).json({ message: 'El email ya está registrado' });
+            return res.status(409).json({ message: 'El email ya está registrado' });
         }
 
         // Subir imagen a Cloudinary si existe
@@ -463,7 +495,7 @@ router.post('/register', upload.single('imagenPerfil'), async (req, res) => {
     } catch (error) {
         console.error('❌ Error en el registro:', error);
         if (error.code === 11000) {
-            return res.status(400).json({ message: 'El email ya está registrado' });
+            return res.status(409).json({ message: 'El email ya está registrado' });
         }
         res.status(500).json({ message: 'Error interno del servidor' });
     }
