@@ -2734,7 +2734,7 @@ export default function DashboardOrganizador() {
       {/* Modal Agregar/Editar Ubicación */}
       {ubicacionModal.open && (
         <div className="modal-overlay">
-          <div className="modal-content max-w-md">
+          <div className="modal-content max-w-5xl">
             <div className="modal-header">
               <h3 className="text-lg font-display font-semibold text-gray-800">
                 {ubicacionModal.editingId ? 'Editar Ubicación' : 'Agregar Nueva Ubicación'}
@@ -2750,122 +2750,129 @@ export default function DashboardOrganizador() {
                 </button>
               )}
             </div>
-            <div className="modal-body">
-              <div className="space-y-4">
-                <div className="form-group">
-                  <label htmlFor="ubicacion-nombre" className="form-label">Nombre de la Cancha</label>
-                  <input
-                    type="text"
-                    id="ubicacion-nombre"
-                    className="form-input"
-                    placeholder="Ej: Cancha Municipal"
-                    value={ubicacionModal.nombre}
-                    onChange={(e) => setUbicacionModal({ ...ubicacionModal, nombre: e.target.value })}
-                    disabled={ubicacionModal.saving}
-                    autoFocus
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="ubicacion-direccion" className="form-label">
-                    Dirección (Buscar en el mapa)
-                  </label>
-                  <div className="relative">
+            <div className="modal-body p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Columna izquierda: Formulario */}
+                <div className="space-y-4">
+                  <div className="form-group">
+                    <label htmlFor="ubicacion-nombre" className="form-label">Nombre de la Cancha</label>
                     <input
                       type="text"
-                      id="ubicacion-direccion"
-                      className="form-input pr-10"
-                      placeholder="Ej: Calle Principal #123, Colima"
-                      value={ubicacionModal.direccion}
-                      onChange={(e) => setUbicacionModal({ ...ubicacionModal, direccion: e.target.value })}
+                      id="ubicacion-nombre"
+                      className="form-input"
+                      placeholder="Ej: Cancha Municipal"
+                      value={ubicacionModal.nombre}
+                      onChange={(e) => setUbicacionModal({ ...ubicacionModal, nombre: e.target.value })}
                       disabled={ubicacionModal.saving}
+                      autoFocus
                     />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!ubicacionModal.direccion) {
-                          alert('Ingresa una dirección primero');
-                          return;
-                        }
-                        try {
-                          const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(ubicacionModal.direccion)}`);
-                          const data = await response.json();
-                          if (data && data.length > 0) {
-                            const lat = parseFloat(data[0].lat);
-                            const lng = parseFloat(data[0].lon);
-                            
-                            setUbicacionModal({
-                              ...ubicacionModal,
-                              latitud: lat,
-                              longitud: lng,
-                              direccion: data[0].display_name
-                            });
-
-                            // Centrar el mapa y colocar marcador
-                            if (mapRef.current) {
-                              mapRef.current.setView([lat, lng], 16);
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="ubicacion-direccion" className="form-label">
+                      Dirección
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        id="ubicacion-direccion"
+                        className="form-input pr-10"
+                        placeholder="Ej: Calle Principal #123, Colima"
+                        value={ubicacionModal.direccion}
+                        onChange={(e) => setUbicacionModal({ ...ubicacionModal, direccion: e.target.value })}
+                        disabled={ubicacionModal.saving}
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!ubicacionModal.direccion) {
+                            alert('Ingresa una dirección primero');
+                            return;
+                          }
+                          try {
+                            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(ubicacionModal.direccion)}`);
+                            const data = await response.json();
+                            if (data && data.length > 0) {
+                              const lat = parseFloat(data[0].lat);
+                              const lng = parseFloat(data[0].lon);
                               
-                              // Remover marcador anterior si existe
-                              if (markerRef.current) {
-                                markerRef.current.remove();
+                              setUbicacionModal({
+                                ...ubicacionModal,
+                                latitud: lat,
+                                longitud: lng,
+                                direccion: data[0].display_name
+                              });
+
+                              // Centrar el mapa y colocar marcador
+                              if (mapRef.current) {
+                                mapRef.current.setView([lat, lng], 16);
+                                
+                                // Remover marcador anterior si existe
+                                if (markerRef.current) {
+                                  markerRef.current.remove();
+                                }
+                                
+                                // Crear nuevo marcador arrastrable
+                                const marker = window.L.marker([lat, lng], { draggable: true }).addTo(mapRef.current);
+                                markerRef.current = marker;
+
+                                // Actualizar coordenadas cuando se arrastra el marcador
+                                marker.on('dragend', function(e) {
+                                  const pos = e.target.getLatLng();
+                                  setUbicacionModal(prev => ({
+                                    ...prev,
+                                    latitud: pos.lat,
+                                    longitud: pos.lng
+                                  }));
+                                });
                               }
                               
-                              // Crear nuevo marcador arrastrable
-                              const marker = window.L.marker([lat, lng], { draggable: true }).addTo(mapRef.current);
-                              markerRef.current = marker;
-
-                              // Actualizar coordenadas cuando se arrastra el marcador
-                              marker.on('dragend', function(e) {
-                                const pos = e.target.getLatLng();
-                                setUbicacionModal(prev => ({
-                                  ...prev,
-                                  latitud: pos.lat,
-                                  longitud: pos.lng
-                                }));
-                              });
+                              alert('✅ Ubicación encontrada en el mapa');
+                            } else {
+                              alert('⚠️ No se encontró la ubicación. Intenta con otra dirección.');
                             }
-                            
-                            alert('✅ Ubicación encontrada en el mapa');
-                          } else {
-                            alert('⚠️ No se encontró la ubicación. Intenta con otra dirección.');
+                          } catch (error) {
+                            logger.error('Error buscando ubicación:', error);
+                            alert('Error al buscar la ubicación');
                           }
-                        } catch (error) {
-                          logger.error('Error buscando ubicación:', error);
-                          alert('Error al buscar la ubicación');
-                        }
-                      }}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-primary-600 hover:text-primary-700 transition-colors"
-                      title="Buscar en el mapa"
-                      disabled={ubicacionModal.saving}
-                    >
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
-                      </svg>
-                    </button>
+                        }}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-primary-600 hover:text-primary-700 transition-colors"
+                        title="Buscar en el mapa"
+                        disabled={ubicacionModal.saving}
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                        </svg>
+                      </button>
+                    </div>
+                    {ubicacionModal.latitud && ubicacionModal.longitud && (
+                      <p className="text-xs text-green-600 mt-2 flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                        </svg>
+                        Ubicación encontrada
+                      </p>
+                    )}
                   </div>
                   {ubicacionModal.latitud && ubicacionModal.longitud && (
-                    <p className="text-xs text-green-600 mt-1 flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-                      </svg>
-                      Ubicación encontrada en el mapa
-                    </p>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-600 font-medium mb-1">Coordenadas:</p>
+                      <p className="text-sm text-gray-700 font-mono">
+                        📍 {ubicacionModal.latitud.toFixed(6)}, {ubicacionModal.longitud.toFixed(6)}
+                      </p>
+                    </div>
                   )}
                 </div>
-                {/* Mapa interactivo */}
-                <div className="form-group">
+
+                {/* Columna derecha: Mapa */}
+                <div className="space-y-2">
                   <label className="form-label">
-                    O selecciona en el mapa (clic para colocar marcador)
+                    Ubicación en el mapa (clic para colocar marcador)
                   </label>
                   <div 
                     id="ubicacion-map" 
                     className="rounded-lg border-2 border-gray-200 shadow-sm"
-                    style={{ height: '300px', width: '100%' }}
+                    style={{ height: '380px', width: '100%' }}
                   ></div>
-                  {ubicacionModal.latitud && ubicacionModal.longitud && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      📍 Coordenadas: {ubicacionModal.latitud.toFixed(6)}, {ubicacionModal.longitud.toFixed(6)}
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
