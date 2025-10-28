@@ -19,12 +19,8 @@
       "dest": "mi-backend/api/index.js"
     },
     {
-      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot))",
-      "dest": "mi-frontend/dist/$1"
-    },
-    {
       "src": "/(.*)",
-      "dest": "mi-frontend/dist/index.html"
+      "dest": "mi-frontend/$1"
     }
   ],
   "env": {
