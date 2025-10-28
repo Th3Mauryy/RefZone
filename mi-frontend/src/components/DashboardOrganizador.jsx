@@ -2549,61 +2549,63 @@ export default function DashboardOrganizador() {
               </div>
             </div>
             
-            <div className="modal-footer flex-col sm:flex-row gap-2">
-              <button 
-                className="btn btn-warning w-full sm:w-auto text-sm order-3 sm:order-1"
-                onClick={confirmDesasignacion}
-                disabled={sustitucionModal.razon.trim().length < 10 || sustitucionModal.loading}
-              >
-                {sustitucionModal.loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Procesando...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
-                    </svg>
-                    Solo Desasignar
-                  </>
-                )}
-              </button>
-              <button 
-                className="btn btn-success w-full sm:w-auto text-sm order-2 sm:order-2"
-                onClick={confirmSustitucion}
-                disabled={!sustitucionModal.nuevoArbitroId || sustitucionModal.razon.trim().length < 10 || sustitucionModal.loading}
-              >
-                {sustitucionModal.loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Procesando...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                    </svg>
-                    Sustituir Árbitro
-                  </>
-                )}
-              </button>
-              <button 
-                className="btn btn-danger w-full sm:w-auto text-sm order-1 sm:order-3" 
-                onClick={() => setSustitucionModal({ open: false, gameId: null, gameName: '', arbitroActual: null, postulados: [], nuevoArbitroId: '', razon: '', loading: false })}
-                disabled={sustitucionModal.loading}
-              >
-                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
-                </svg>
-                Cancelar
-              </button>
+            <div className="modal-footer">
+              <div className="flex flex-col sm:flex-row gap-2 w-full">
+                <button 
+                  className="btn btn-ghost flex-1 text-xs sm:text-sm" 
+                  onClick={() => setSustitucionModal({ open: false, gameId: null, gameName: '', arbitroActual: null, postulados: [], nuevoArbitroId: '', razon: '', loading: false })}
+                  disabled={sustitucionModal.loading}
+                >
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                  </svg>
+                  Cancelar
+                </button>
+                <button 
+                  className="btn btn-warning flex-1 text-xs sm:text-sm"
+                  onClick={confirmDesasignacion}
+                  disabled={sustitucionModal.razon.trim().length < 10 || sustitucionModal.loading}
+                >
+                  {sustitucionModal.loading ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5 sm:h-4 sm:w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span className="hidden sm:inline">Procesando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="hidden sm:inline">Solo </span>Desasignar
+                    </>
+                  )}
+                </button>
+                <button 
+                  className="btn btn-success flex-1 text-xs sm:text-sm"
+                  onClick={confirmSustitucion}
+                  disabled={!sustitucionModal.nuevoArbitroId || sustitucionModal.razon.trim().length < 10 || sustitucionModal.loading}
+                >
+                  {sustitucionModal.loading ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5 sm:h-4 sm:w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span className="hidden sm:inline">Procesando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      Sustituir
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
