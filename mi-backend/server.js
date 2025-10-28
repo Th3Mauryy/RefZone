@@ -26,6 +26,18 @@ const Game = require('./models/Game');
 const User = require('./models/User');
 const nodemailer = require('nodemailer');
 
+// Importar middlewares de seguridad
+const { 
+  loginLimiter, 
+  registerLimiter, 
+  passwordRecoveryLimiter,
+  apiLimiter,
+  createGameLimiter,
+  applyGameLimiter 
+} = require('./middleware/rateLimiter');
+
+const { sanitizeBodyMiddleware } = require('./middleware/sanitizer');
+
 // Crear la instancia de Express
 const app = express();
 
@@ -57,6 +69,52 @@ app.use(session({
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
     },
 }));
+
+// ===== MIDDLEWARES DE SEGURIDAD =====
+console.log('🔒 Configurando middlewares de seguridad...');
+
+// 1. Helmet con configuración mejorada
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+            connectSrc: ["'self'", process.env.FRONTEND_URL || "http://localhost:5173"]
+        }
+    },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    },
+    frameguard: { action: 'deny' },
+    noSniff: true,
+    xssFilter: true
+}));
+
+// 2. Sanitización general de inputs
+app.use(sanitizeBodyMiddleware);
+
+// 3. Rate limiting general para API
+app.use('/api/', apiLimiter);
+
+// 4. Rate limiters específicos para rutas críticas
+app.use('/api/usuarios/login', loginLimiter);
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/usuarios/registro', registerLimiter);
+app.use('/api/auth/register', registerLimiter);
+app.use('/api/usuarios/recuperar', passwordRecoveryLimiter);
+app.use('/api/auth/recuperar', passwordRecoveryLimiter);
+app.use('/api/games', (req, res, next) => {
+    if (req.method === 'POST') return createGameLimiter(req, res, next);
+    next();
+});
+app.use('/api/games/:id/apply', applyGameLimiter);
+
+console.log('✅ Middlewares de seguridad configurados');
 
 // Conexión a MongoDB Atlas
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/refzone')

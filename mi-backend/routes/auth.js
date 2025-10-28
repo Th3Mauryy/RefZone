@@ -13,6 +13,9 @@ const crypto = require('crypto');
 const partidoService = require('../services/partidoService');
 const HistorialPartido = require('../models/HistorialPartido');
 
+// Importar security logger
+const { logAuthAttempt, logCriticalAction } = require('../middleware/securityLogger');
+
 // Configuración de Cloudinary
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -97,14 +100,21 @@ router.post('/login', async (req, res) => {
             .lean();
         
         if (!user) {
+            // LOG: Intento fallido - usuario no existe
+            logAuthAttempt(req, false, 'Usuario no encontrado');
             return res.status(400).json({ message: 'Credenciales inválidas' });
         }
 
         // Verificar contraseña directamente
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
+            // LOG: Intento fallido - contraseña incorrecta
+            logAuthAttempt(req, false, 'Contraseña incorrecta');
             return res.status(400).json({ message: 'Credenciales inválidas' });
         }
+
+        // LOG: Login exitoso
+        logAuthAttempt(req, true);
 
         // Generar token JWT
         const token = jwt.sign(

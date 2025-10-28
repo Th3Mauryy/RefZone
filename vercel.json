@@ -5,7 +5,7 @@
       "src": "mi-frontend/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist"
+        "distDir": "mi-frontend/dist"
       }
     },
     {
@@ -19,12 +19,15 @@
       "dest": "mi-backend/api/index.js"
     },
     {
-      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg))",
-      "dest": "mi-frontend/$1"
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot))",
+      "dest": "mi-frontend/dist/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "mi-frontend/index.html"
+      "dest": "mi-frontend/dist/index.html"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }

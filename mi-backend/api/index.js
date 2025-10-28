@@ -11,6 +11,16 @@ const gameRoutes = require('../routes/gameRoutes');
 const reporteRoutes = require('../routes/reporteRoutes');
 const ubicacionRoutes = require('../routes/ubicacionRoutes');
 
+// Importar middlewares de seguridad
+const { 
+  loginLimiter, 
+  registerLimiter, 
+  passwordRecoveryLimiter,
+  apiLimiter 
+} = require('../middleware/rateLimiter');
+
+const { sanitizeBodyMiddleware } = require('../middleware/sanitizer');
+
 // Crear app Express
 const app = express();
 
@@ -25,7 +35,23 @@ app.use(cors({
 }));
 
 // Middlewares
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+            connectSrc: ["'self'", "https://ref-zone.vercel.app"]
+        }
+    },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    }
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -40,6 +66,16 @@ app.use(session({
         maxAge: 24 * 60 * 60 * 1000
     }
 }));
+
+// ===== MIDDLEWARES DE SEGURIDAD =====
+// Sanitización de inputs
+app.use(sanitizeBodyMiddleware);
+
+// Rate limiting
+app.use('/api/', apiLimiter);
+app.use(['/api/usuarios/login', '/api/auth/login'], loginLimiter);
+app.use(['/api/usuarios/registro', '/api/auth/register'], registerLimiter);
+app.use(['/api/usuarios/recuperar', '/api/auth/recuperar'], passwordRecoveryLimiter);
 
 // Conectar a MongoDB
 let isConnected = false;

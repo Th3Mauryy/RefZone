@@ -1,0 +1,31 @@
+# Archivos y directorios a ignorar en Vercel
+node_modules
+.git
+.github
+*.md
+!README.md
+.DS_Store
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing
+coverage
+*.test.js
+*.test.jsx
+*.spec.js
+*.spec.jsx
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Scripts locales
+mi-backend/scripts/
