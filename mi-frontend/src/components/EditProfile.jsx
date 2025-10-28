@@ -219,7 +219,7 @@ export default function EditProfile() {
         {/* Calificación del Árbitro - Solo visible para árbitros */}
         {user.role === 'arbitro' && (
           <div className="card mb-6 bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-yellow-200">
-            <div className="card-body">
+            <div className="card-body p-4">
               <h3 className="text-base font-bold text-gray-800 mb-1 flex items-center">
                 ⭐ Tu Calificación como Árbitro
               </h3>
@@ -228,14 +228,14 @@ export default function EditProfile() {
               </p>
               
               {user.calificacionPromedio > 0 ? (
-                <div className="flex items-center justify-center space-x-8">
-                  {/* Estrellas */}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
+                  {/* Estrellas y puntuación */}
                   <div className="flex flex-col items-center">
-                    <div className="flex items-center space-x-1 mb-2">
+                    <div className="flex items-center gap-1 mb-2">
                       {[...Array(5)].map((_, i) => (
                         <svg 
                           key={i} 
-                          className={`w-8 h-8 ${i < Math.round(user.calificacionPromedio) ? 'text-yellow-400' : 'text-gray-300'}`}
+                          className={`w-7 h-7 sm:w-8 sm:h-8 ${i < Math.round(user.calificacionPromedio) ? 'text-yellow-400' : 'text-gray-300'}`}
                           fill="currentColor" 
                           viewBox="0 0 20 20"
                         >
@@ -249,11 +249,11 @@ export default function EditProfile() {
                   </div>
                   
                   {/* Contador */}
-                  <div className="text-center px-8 py-4 bg-white rounded-xl shadow-md border-2 border-yellow-200">
-                    <div className="text-5xl font-bold text-yellow-500 mb-1">
+                  <div className="text-center px-6 sm:px-8 py-3 sm:py-4 bg-white rounded-xl shadow-md border-2 border-yellow-200 min-w-[120px]">
+                    <div className="text-4xl sm:text-5xl font-bold text-yellow-500 mb-1">
                       {user.totalCalificaciones}
                     </div>
-                    <div className="text-xs text-gray-600 uppercase font-semibold">
+                    <div className="text-xs text-gray-600 uppercase font-semibold whitespace-nowrap">
                       Calificaciones
                     </div>
                   </div>
@@ -268,10 +268,10 @@ export default function EditProfile() {
                   <h4 className="text-lg font-bold text-gray-700 mb-2">
                     Sin Calificaciones Aún
                   </h4>
-                  <p className="text-sm text-gray-600 max-w-md mx-auto mb-4">
+                  <p className="text-sm text-gray-600 max-w-md mx-auto mb-4 px-4">
                     Completa tus primeros partidos para recibir calificaciones de los organizadores
                   </p>
-                  <div className="flex items-center justify-center space-x-1">
+                  <div className="flex items-center justify-center gap-1">
                     {[...Array(5)].map((_, i) => (
                       <svg 
                         key={i} 
