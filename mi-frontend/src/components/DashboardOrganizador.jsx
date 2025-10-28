@@ -2251,7 +2251,7 @@ export default function DashboardOrganizador() {
                 <div className="flex justify-end space-x-3 pt-4">
                   <button 
                     type="button"
-                    className="btn btn-ghost" 
+                    className="btn btn-danger" 
                     onClick={() => setModalOpen(false)}
                   >
                     Cancelar
@@ -2552,7 +2552,7 @@ export default function DashboardOrganizador() {
             <div className="modal-footer">
               <div className="flex flex-col sm:flex-row gap-2 w-full">
                 <button 
-                  className="btn btn-ghost flex-1 text-xs sm:text-sm" 
+                  className="btn btn-danger flex-1 text-xs sm:text-sm" 
                   onClick={() => setSustitucionModal({ open: false, gameId: null, gameName: '', arbitroActual: null, postulados: [], nuevoArbitroId: '', razon: '', loading: false })}
                   disabled={sustitucionModal.loading}
                 >
@@ -2711,7 +2711,7 @@ export default function DashboardOrganizador() {
                 {!reporteModal.cargando && (
                   <>
                     <button 
-                      className="btn btn-ghost" 
+                      className="btn btn-danger" 
                       onClick={() => setReporteModal({ ...reporteModal, open: false })}
                     >
                       Cancelar
@@ -2882,7 +2882,7 @@ export default function DashboardOrganizador() {
               <div className="flex justify-end space-x-3">
                 {!ubicacionModal.saving && (
                   <button 
-                    className="btn btn-ghost" 
+                    className="btn btn-danger" 
                     onClick={() => setUbicacionModal({ open: false, nombre: '', direccion: '', latitud: null, longitud: null, googleMapsUrl: '', saving: false, editingId: null })}
                   >
                     Cancelar
@@ -3176,7 +3176,7 @@ export default function DashboardOrganizador() {
               <div className="flex flex-row justify-between sm:justify-end gap-3">
                 {!calificacionModal.loading && (
                   <button 
-                    className="btn btn-ghost flex-1 sm:flex-none text-xs sm:text-sm py-2" 
+                    className="btn btn-danger flex-1 sm:flex-none text-xs sm:text-sm py-2" 
                     onClick={() => setCalificacionModal({ open: false, partido: null, arbitro: null, estrellas: 0, comentario: '', loading: false })}
                   >
                     Cancelar
