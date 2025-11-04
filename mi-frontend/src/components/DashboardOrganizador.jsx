@@ -156,6 +156,22 @@ export default function DashboardOrganizador() {
         } else if (data.role === 'arbitro') {
           window.location.href = "/dashboard";
         }
+      } else if (res.status === 401) {
+        // Token expirado o inválido - redirigir al login
+        const errorData = await res.json();
+        logger.error("Token inválido o expirado:", errorData.error);
+        
+        // Limpiar datos de sesión
+        localStorage.removeItem("token");
+        localStorage.removeItem("userId");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("userImage");
+        
+        // Mostrar mensaje y redirigir
+        alert("Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
+        window.location.href = "/";
       } else {
         window.location.href = "/";
       }
