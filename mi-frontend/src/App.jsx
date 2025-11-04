@@ -9,51 +9,68 @@ import CompleteProfile from "./components/CompleteProfile";
 import RecoverPassword from "./components/RecoverPassword";
 import ResetPassword from "./components/ResetPassword";
 
+// Variable global para evitar múltiples redirecciones
+window.__TOKEN_EXPIRED_REDIRECT__ = false;
+
 function App() {
   // Interceptor global para manejar errores 401 (token expirado)
   useEffect(() => {
+    // Solo configurar una vez
+    if (window.__FETCH_INTERCEPTOR_INSTALLED__) {
+      return;
+    }
+    
     const originalFetch = window.fetch;
-    let redirecting = false; // Evitar múltiples redirecciones
     
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
       
-      // Si es un 401 y estamos en una página protegida (no en login o register)
-      const isProtectedPage = !['/register', '/recuperar', '/resetear'].includes(window.location.pathname) && window.location.pathname !== '/';
+      // Si es un 401 y estamos en una página protegida
+      const isProtectedPage = !['/register', '/recuperar', '/resetear', '/'].includes(window.location.pathname);
       
-      if (response.status === 401 && isProtectedPage && !redirecting) {
+      if (response.status === 401 && isProtectedPage && !window.__TOKEN_EXPIRED_REDIRECT__) {
+        // Clonar respuesta para poder leerla sin consumirla
         const clonedResponse = response.clone();
+        
         try {
           const data = await clonedResponse.json();
           
           // Si el error es de token expirado o inválido
-          if (data.error === 'token_expired' || data.error === 'invalid_token' || data.message?.includes('expirado')) {
-            redirecting = true;
+          if (data.error === 'token_expired' || data.error === 'invalid_token' || 
+              data.error === 'missing_token' || data.message?.toLowerCase().includes('expirado') ||
+              data.message?.toLowerCase().includes('token')) {
+            
+            // Marcar que ya estamos redirigiendo
+            window.__TOKEN_EXPIRED_REDIRECT__ = true;
+            
             console.error('🔒 Token expirado/inválido detectado, cerrando sesión...');
+            console.error('Error recibido:', data);
             
             // Limpiar localStorage
-            localStorage.removeItem("token");
-            localStorage.removeItem("userId");
-            localStorage.removeItem("userName");
-            localStorage.removeItem("userEmail");
-            localStorage.removeItem("userRole");
-            localStorage.removeItem("userImage");
+            localStorage.clear();
             
-            // Redirigir al login
-            alert("Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
-            window.location.href = "/";
+            // Redirigir al login después de un pequeño delay para asegurar que se ejecute
+            setTimeout(() => {
+              alert("Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
+              window.location.replace("/");
+            }, 100);
           }
-        } catch {
-          // Si no se puede parsear el JSON, ignorar
+        } catch (parseError) {
+          // Si no se puede parsear el JSON, podría ser un 401 sin body
+          console.error('Error al parsear respuesta 401:', parseError);
         }
       }
       
       return response;
     };
     
+    window.__FETCH_INTERCEPTOR_INSTALLED__ = true;
+    console.log('✅ Interceptor de token instalado');
+    
     // Cleanup: restaurar fetch original al desmontar
     return () => {
       window.fetch = originalFetch;
+      window.__FETCH_INTERCEPTOR_INSTALLED__ = false;
     };
   }, []);
 
