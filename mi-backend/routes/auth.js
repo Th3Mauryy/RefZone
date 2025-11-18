@@ -719,7 +719,7 @@ router.get('/partidos-pendientes-calificacion', verifyToken, async (req, res) =>
         const HistorialPartido = require('../models/HistorialPartido');
         
         // Buscar partidos pendientes de calificación (SOLO finalizados, NO cancelados)
-        const pendientes = await HistorialPartido.find({
+        const candidatos = await HistorialPartido.find({
             canchaId: user.canchaAsignada,
             arbitro: { $ne: null },
             calificado: false,
@@ -727,6 +727,43 @@ router.get('/partidos-pendientes-calificacion', verifyToken, async (req, res) =>
         })
         .populate('arbitro', 'nombre email imagenPerfil calificacionPromedio totalCalificaciones')
         .sort({ fechaEliminacion: -1 });
+        
+        // 🔒 VALIDACIÓN ADICIONAL: Verificar que realmente hayan finalizado (1 hora después del inicio)
+        const pendientes = candidatos.filter(partido => {
+            try {
+                let fechaPartido;
+                
+                // Detectar formato de fecha (DD/MM/YYYY o YYYY-MM-DD)
+                if (partido.fecha.includes('/')) {
+                    const [dia, mes, ano] = partido.fecha.split('/').map(Number);
+                    const [hora, minutos] = partido.hora.split(':').map(Number);
+                    fechaPartido = new Date(ano, mes - 1, dia, hora, minutos);
+                } else if (partido.fecha.includes('-')) {
+                    const [ano, mes, dia] = partido.fecha.split('-').map(Number);
+                    const [hora, minutos] = partido.hora.split(':').map(Number);
+                    fechaPartido = new Date(ano, mes - 1, dia, hora, minutos);
+                } else {
+                    console.error('Formato de fecha desconocido:', partido.fecha);
+                    return false;
+                }
+                
+                // Agregar 1 HORA a la fecha del partido para considerar que finalizó
+                const fechaFinalizacion = new Date(fechaPartido.getTime() + 60 * 60 * 1000);
+                const ahora = new Date();
+                
+                // Solo incluir si ya pasó 1 hora desde el inicio
+                const haFinalizado = ahora >= fechaFinalizacion;
+                
+                if (!haFinalizado) {
+                    console.log(`⏳ Partido "${partido.nombre}" aún no finaliza (inicio: ${partido.fecha} ${partido.hora}, finalización: 1h después)`);
+                }
+                
+                return haFinalizado;
+            } catch (error) {
+                console.error('Error verificando finalización:', error);
+                return false;
+            }
+        });
         
         res.status(200).json({ pendientes });
     } catch (error) {
