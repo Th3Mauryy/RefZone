@@ -5,9 +5,68 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const handleEmailChange = (e) => {
+    const value = e.target.value;
+    setEmail(value);
+    
+    const newErrors = { ...errors };
+    delete newErrors.email;
+    
+    if (!value) {
+      newErrors.email = "⚠️ El correo electrónico es obligatorio.";
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        newErrors.email = "⚠️ Por favor, ingresa un correo electrónico válido.";
+      }
+    }
+    
+    setErrors(newErrors);
+  };
+
+  const handlePasswordChange = (e) => {
+    const value = e.target.value;
+    setPassword(value);
+    
+    const newErrors = { ...errors };
+    delete newErrors.password;
+    
+    if (!value) {
+      newErrors.password = "⚠️ La contraseña es obligatoria.";
+    } else if (value.length < 5) {
+      newErrors.password = "⚠️ La contraseña debe tener al menos 5 caracteres.";
+    }
+    
+    setErrors(newErrors);
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!email) {
+      newErrors.email = "⚠️ El correo electrónico es obligatorio.";
+    } else if (!emailRegex.test(email)) {
+      newErrors.email = "⚠️ Por favor, ingresa un correo electrónico válido.";
+    }
+    
+    if (!password) {
+      newErrors.password = "⚠️ La contraseña es obligatoria.";
+    } else if (password.length < 5) {
+      newErrors.password = "⚠️ La contraseña debe tener al menos 5 caracteres.";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) return;
+    
     setIsLoading(true);
     
     try {
@@ -105,10 +164,11 @@ export default function Login() {
                 placeholder="tu@email.com"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="form-input"
+                onChange={handleEmailChange}
+                className={`form-input ${errors.email ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
                 disabled={isLoading}
               />
+              {errors.email && <p className="form-error">{errors.email}</p>}
             </div>
 
             <div className="form-group">
@@ -124,16 +184,17 @@ export default function Login() {
                 placeholder="••••••••"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="form-input"
+                onChange={handlePasswordChange}
+                className={`form-input ${errors.password ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
                 disabled={isLoading}
               />
+              {errors.password && <p className="form-error">{errors.password}</p>}
             </div>
 
             <button 
               type="submit" 
               className="btn btn-primary w-full py-3 text-lg font-semibold"
-              disabled={isLoading}
+              disabled={isLoading || Object.keys(errors).length > 0}
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">

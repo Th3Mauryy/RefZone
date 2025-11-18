@@ -33,16 +33,33 @@ router.post('/', verifyToken, async (req, res) => {
         
         const { nombre, direccion, latitud, longitud, googleMapsUrl, canchaId } = req.body;
         
+        // Validaciones (CP-034, CP-035)
         if (!nombre?.trim()) {
-            return res.status(400).json({ message: 'El nombre es requerido' });
+            return res.status(400).json({ message: 'El nombre de la cancha es requerido' });
+        }
+        
+        if (!direccion || direccion.trim().length < 10) {
+            return res.status(400).json({ message: 'La dirección debe tener al menos 10 caracteres' });
+        }
+        
+        if (!latitud || !longitud) {
+            return res.status(400).json({ message: 'Debes marcar la ubicación en el mapa (latitud y longitud requeridas)' });
+        }
+        
+        // Validar que las coordenadas sean números válidos
+        const lat = parseFloat(latitud);
+        const lng = parseFloat(longitud);
+        
+        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return res.status(400).json({ message: 'Coordenadas inválidas. Por favor marca la ubicación en el mapa correctamente' });
         }
         
         const nuevaUbicacion = await Ubicacion.create({
             nombre: nombre.trim(),
-            direccion: direccion?.trim(),
-            latitud,
-            longitud,
-            googleMapsUrl: googleMapsUrl || (latitud && longitud ? `https://www.google.com/maps?q=${latitud},${longitud}` : undefined),
+            direccion: direccion.trim(),
+            latitud: lat,
+            longitud: lng,
+            googleMapsUrl: googleMapsUrl || `https://www.google.com/maps?q=${lat},${lng}`,
             organizadorId: req.user.id,
             canchaId: canchaId || req.user.canchaAsignada,
             activa: true
@@ -72,14 +89,36 @@ router.put('/:id', verifyToken, async (req, res) => {
             return res.status(404).json({ message: 'Ubicación no encontrada o no tienes permiso para editarla' });
         }
         
+        // Validaciones (CP-036)
+        if (nombre !== undefined && !nombre.trim()) {
+            return res.status(400).json({ message: 'El nombre de la cancha no puede estar vacío' });
+        }
+        
+        if (direccion !== undefined && direccion.trim().length < 10) {
+            return res.status(400).json({ message: 'La dirección debe tener al menos 10 caracteres' });
+        }
+        
+        if ((latitud !== undefined || longitud !== undefined)) {
+            if (!latitud || !longitud) {
+                return res.status(400).json({ message: 'Debes proporcionar tanto latitud como longitud' });
+            }
+            
+            const lat = parseFloat(latitud);
+            const lng = parseFloat(longitud);
+            
+            if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                return res.status(400).json({ message: 'Coordenadas inválidas' });
+            }
+        }
+        
         // Guardar el nombre anterior ANTES de actualizar
         const nombreAnterior = nombre ? ubicacion.nombre : null;
 
         // Actualizar campos
         if (nombre) ubicacion.nombre = nombre.trim();
-        if (direccion !== undefined) ubicacion.direccion = direccion ? direccion.trim() : '';
-        if (latitud !== undefined) ubicacion.latitud = latitud;
-        if (longitud !== undefined) ubicacion.longitud = longitud;
+        if (direccion !== undefined) ubicacion.direccion = direccion.trim();
+        if (latitud !== undefined) ubicacion.latitud = parseFloat(latitud);
+        if (longitud !== undefined) ubicacion.longitud = parseFloat(longitud);
         if (googleMapsUrl !== undefined) ubicacion.googleMapsUrl = googleMapsUrl;
         
         await ubicacion.save();

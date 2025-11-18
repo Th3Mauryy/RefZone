@@ -98,14 +98,14 @@ router.get('/reporte-datos', verifyToken, async (req, res) => {
             })),
             ...partidosHistoricos.map(p => ({
                 id: p._id,
-                nombre: p.name,
-                fecha: p.date,
-                hora: p.time,
-                ubicacion: p.location,
+                nombre: p.nombre,  // ✅ Correcto: usar 'nombre' del modelo HistorialPartido
+                fecha: p.fecha,    // ✅ Correcto: usar 'fecha' del modelo HistorialPartido
+                hora: p.hora,      // ✅ Correcto: usar 'hora' del modelo HistorialPartido
+                ubicacion: p.ubicacion,  // ✅ Correcto: usar 'ubicacion' del modelo HistorialPartido
                 cancha: cancha.nombre,
-                arbitro: p.arbitro ? (p.arbitro.nombre || p.arbitro.email) : 'Sin asignar',
+                arbitro: p.arbitroNombre || (p.arbitro ? (p.arbitro.nombre || p.arbitro.email) : 'Sin asignar'),
                 tieneArbitro: !!p.arbitro,
-                estado: p.estadoFinal === 'finalizado' ? 'Finalizado' : 'Cancelado',
+                estado: p.estado || 'Finalizado',  // ✅ Usar el campo 'estado' que ya tiene el valor correcto
                 esHistorial: true
             }))
         ].sort((a, b) => {

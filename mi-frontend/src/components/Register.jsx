@@ -19,12 +19,18 @@ export default function Register() {
 
   const handleChange = (e) => {
     const { id, files, value } = e.target;
-    setErrors({...errors, [id]: ""});
+    
+    // Objeto para nuevos errores
+    const newErrors = {...errors};
+    
+    // Limpiar error del campo que se está editando
+    delete newErrors[id];
 
     if (id === "imagenPerfil") {
       const file = files?.[0];
       if (file && !["image/jpeg", "image/png", "image/jpg"].includes(file.type)) {
-        setErrors({...errors, [id]: "Solo se permiten imágenes en formato JPEG o PNG."});
+        newErrors.imagenPerfil = "Solo se permiten imágenes en formato JPEG o PNG.";
+        setErrors(newErrors);
         return;
       }
       
@@ -50,35 +56,142 @@ export default function Register() {
     } else if (id === "edad") {
       const num = value === "" ? "" : Number(value);
       setForm((prev) => ({ ...prev, edad: num }));
+      
+      // Validación en tiempo real para edad
+      if (value) {
+        const edadNum = Number(value);
+        if (isNaN(edadNum) || edadNum < 18) {
+          newErrors.edad = "⚠️ Debes tener al menos 18 años.";
+        } else if (edadNum > 50) {
+          newErrors.edad = "⚠️ La edad máxima permitida es 50 años.";
+        }
+      }
     } else {
       setForm((prev) => ({ ...prev, [id]: value }));
+      
+      // Validación en tiempo real para email
+      if (id === "email") {
+        if (!value) {
+          newErrors.email = "⚠️ El correo electrónico es obligatorio.";
+        } else {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(value)) {
+            newErrors.email = "⚠️ Por favor, ingresa un correo electrónico válido.";
+          }
+        }
+      }
+      
+      // Validación en tiempo real para nombre
+      if (id === "nombre") {
+        if (!value.trim()) {
+          newErrors.nombre = "⚠️ El nombre es obligatorio.";
+        } else if (value.trim().length < 3) {
+          newErrors.nombre = "⚠️ El nombre debe tener al menos 3 caracteres.";
+        } else {
+          const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+          if (!nameRegex.test(value)) {
+            newErrors.nombre = "⚠️ El nombre solo puede contener letras y espacios.";
+          }
+        }
+      }
+      
+      // Validación en tiempo real para contraseña
+      if (id === "password") {
+        if (!value) {
+          newErrors.password = "⚠️ La contraseña es obligatoria.";
+        } else if (value.length < 8) {
+          newErrors.password = "⚠️ Contraseña débil: debe tener al menos 8 caracteres.";
+        } else if (!/[A-Z]/.test(value)) {
+          newErrors.password = "⚠️ Contraseña débil: debe incluir al menos una mayúscula.";
+        } else if (!/[0-9]/.test(value)) {
+          newErrors.password = "⚠️ Contraseña débil: debe incluir al menos un número.";
+        }
+      }
+      
+      // Validación en tiempo real para contacto
+      if (id === "contacto") {
+        if (!value) {
+          newErrors.contacto = "⚠️ El número de contacto es obligatorio.";
+        } else if (!/^\d+$/.test(value)) {
+          newErrors.contacto = "⚠️ Solo se permiten números.";
+        } else if (value.length !== 10) {
+          newErrors.contacto = "⚠️ Debe contener exactamente 10 dígitos.";
+        }
+      }
+      
+      // Validación en tiempo real para experiencia
+      if (id === "experiencia") {
+        if (!value.trim()) {
+          newErrors.experiencia = "⚠️ La experiencia es obligatoria.";
+        } else if (value.trim().length < 10) {
+          newErrors.experiencia = "⚠️ Describe tu experiencia con al menos 10 caracteres.";
+        }
+      }
     }
+    
+    setErrors(newErrors);
   };
 
   const validateForm = () => {
     const newErrors = {};
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const nameRegex = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+$/;
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
     const contactRegex = /^\d{10}$/;
 
-    if (!emailRegex.test(form.email)) {
-      newErrors.email = "Por favor, ingresa un correo electrónico válido.";
+    // Validación de email
+    if (!form.email) {
+      newErrors.email = "⚠️ El correo electrónico es obligatorio.";
+    } else if (!emailRegex.test(form.email)) {
+      newErrors.email = "⚠️ Por favor, ingresa un correo electrónico válido.";
     }
-    if (!nameRegex.test(form.nombre)) {
-      newErrors.nombre = "El nombre solo puede contener letras y números.";
+    
+    // Validación de contraseña fuerte
+    if (!form.password) {
+      newErrors.password = "⚠️ La contraseña es obligatoria.";
+    } else if (form.password.length < 8) {
+      newErrors.password = "⚠️ Contraseña débil: debe tener al menos 8 caracteres.";
+    } else if (!/[A-Z]/.test(form.password)) {
+      newErrors.password = "⚠️ Contraseña débil: debe incluir al menos una mayúscula.";
+    } else if (!/[0-9]/.test(form.password)) {
+      newErrors.password = "⚠️ Contraseña débil: debe incluir al menos un número.";
     }
-    if (form.password.length < 6) {
-      newErrors.password = "La contraseña debe tener al menos 6 caracteres.";
+    
+    // Validación de nombre
+    if (!form.nombre.trim()) {
+      newErrors.nombre = "⚠️ El nombre es obligatorio.";
+    } else if (form.nombre.trim().length < 3) {
+      newErrors.nombre = "⚠️ El nombre debe tener al menos 3 caracteres.";
+    } else if (!nameRegex.test(form.nombre)) {
+      newErrors.nombre = "⚠️ El nombre solo puede contener letras y espacios.";
     }
+    
+    // Validación de edad
     const edadNum = Number(form.edad);
-    if (Number.isNaN(edadNum) || edadNum < 18 || edadNum > 50) {
-      newErrors.edad = "La edad debe ser un número entre 18 y 50.";
+    if (!form.edad) {
+      newErrors.edad = "⚠️ La edad es obligatoria.";
+    } else if (Number.isNaN(edadNum) || edadNum < 18) {
+      newErrors.edad = "⚠️ Debes tener al menos 18 años.";
+    } else if (edadNum > 50) {
+      newErrors.edad = "⚠️ La edad máxima permitida es 50 años.";
     }
-    if (!contactRegex.test(form.contacto)) {
-      newErrors.contacto = "El contacto debe contener exactamente 10 dígitos.";
+    
+    // Validación de contacto
+    if (!form.contacto) {
+      newErrors.contacto = "⚠️ El número de contacto es obligatorio.";
+    } else if (!contactRegex.test(form.contacto)) {
+      newErrors.contacto = "⚠️ El contacto debe contener exactamente 10 dígitos.";
     }
-    if (form.experiencia.length < 10) {
-      newErrors.experiencia = "Describe tu experiencia con al menos 10 caracteres.";
+    
+    // Validación de experiencia
+    if (!form.experiencia.trim()) {
+      newErrors.experiencia = "⚠️ La experiencia es obligatoria.";
+    } else if (form.experiencia.trim().length < 10) {
+      newErrors.experiencia = "⚠️ Describe tu experiencia con al menos 10 caracteres.";
+    }
+    
+    // Validación de imagen de perfil OBLIGATORIA
+    if (!form.imagenPerfil) {
+      newErrors.imagenPerfil = "⚠️ Debes subir una foto de perfil.";
     }
 
     setErrors(newErrors);
@@ -295,7 +408,8 @@ export default function Register() {
                 <svg className="w-4 h-4 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd"/>
                 </svg>
-                Foto de Perfil (Opcional)
+                Foto de Perfil <span className="text-red-500">*</span>
+                <span className="text-xs font-normal text-gray-500 ml-2">(Obligatorio)</span>
               </label>
               
               {previewImage ? (
@@ -312,6 +426,7 @@ export default function Register() {
                         onClick={() => {
                           setPreviewImage(null);
                           setForm(prev => ({ ...prev, imagenPerfil: null }));
+                          setErrors({...errors, imagenPerfil: "⚠️ Debes subir una foto de perfil."});
                           document.getElementById('imagenPerfil').value = '';
                         }}
                         className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 shadow-lg transition-colors duration-200"
@@ -323,14 +438,14 @@ export default function Register() {
                       </button>
                     </div>
                   </div>
-                  <p className="text-center text-sm text-gray-600 mt-3">
+                  <p className="text-center text-sm text-green-600 mt-3 font-semibold">
                     ✅ Foto cargada correctamente
                   </p>
                 </div>
               ) : (
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-primary-400 transition-colors duration-200">
+                <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors duration-200 ${errors.imagenPerfil ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-primary-400'}`}>
                   <div className="space-y-1 text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <svg className={`mx-auto h-12 w-12 ${errors.imagenPerfil ? 'text-red-400' : 'text-gray-400'}`} stroke="currentColor" fill="none" viewBox="0 0 48 48">
                       <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                     <div className="flex justify-center text-sm text-gray-600">

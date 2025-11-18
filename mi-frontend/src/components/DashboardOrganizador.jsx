@@ -11,8 +11,10 @@ export default function DashboardOrganizador() {
   const [modalTitle, setModalTitle] = useState("Agregar Partido");
   const [currentGame, setCurrentGame] = useState(initialGame);
   const [editingId, setEditingId] = useState(null);
+  const [gameErrors, setGameErrors] = useState({});
 
   const [postuladosModal, setPostuladosModal] = useState({ open: false, postulados: [], gameId: null });
+  const [historialModal, setHistorialModal] = useState({ open: false, arbitro: null, historial: [], loading: false });
   const [reporteModal, setReporteModal] = useState({ open: false, mes: new Date().getMonth() + 1, ano: new Date().getFullYear(), cargando: false });
   const [arbitroDetalleModal, setArbitroDetalleModal] = useState({ open: false, arbitro: null });
   const [sustitucionModal, setSustitucionModal] = useState({ 
@@ -48,7 +50,8 @@ export default function DashboardOrganizador() {
     latitud: null,
     longitud: null,
     saving: false, 
-    editingId: null 
+    editingId: null,
+    marcadorColocado: false // Nueva bandera para verificar que se haya hecho clic en el mapa
   });
   const mapRef = useRef(null); // Referencia para el mapa de Leaflet
   const markerRef = useRef(null); // Referencia para el marcador
@@ -260,7 +263,8 @@ export default function DashboardOrganizador() {
           setUbicacionModal(prev => ({
             ...prev,
             latitud: pos.lat,
-            longitud: pos.lng
+            longitud: pos.lng,
+            marcadorColocado: false // ❌ Desactivar cuando arrastra (ubicación cambió)
           }));
         });
       }
@@ -278,11 +282,12 @@ export default function DashboardOrganizador() {
         const marker = window.L.marker([lat, lng], { draggable: true }).addTo(map);
         markerRef.current = marker;
 
-        // Actualizar estado con nuevas coordenadas
+        // Actualizar estado con nuevas coordenadas pero SIN confirmar dirección
         setUbicacionModal(prev => ({
           ...prev,
           latitud: lat,
-          longitud: lng
+          longitud: lng,
+          marcadorColocado: false // ❌ Desactivar hasta que presione el botón de dirección
         }));
 
         // Actualizar coordenadas cuando se arrastra el marcador
@@ -291,7 +296,8 @@ export default function DashboardOrganizador() {
           setUbicacionModal(prev => ({
             ...prev,
             latitud: pos.lat,
-            longitud: pos.lng
+            longitud: pos.lng,
+            marcadorColocado: false // ❌ Desactivar cuando arrastra (ubicación cambió)
           }));
         });
       });
@@ -349,7 +355,8 @@ export default function DashboardOrganizador() {
         longitud: ubicacion.longitud || null,
         googleMapsUrl: ubicacion.googleMapsUrl || '',
         saving: false, 
-        editingId: ubicacion._id 
+        editingId: ubicacion._id,
+        marcadorColocado: true // Ya existe la ubicación, se considera válida
       });
     } else {
       setUbicacionModal({ 
@@ -360,7 +367,8 @@ export default function DashboardOrganizador() {
         longitud: null,
         googleMapsUrl: '',
         saving: false, 
-        editingId: null 
+        editingId: null,
+        marcadorColocado: false // Nueva ubicación, debe colocar marcador
       });
     }
   }
@@ -368,8 +376,27 @@ export default function DashboardOrganizador() {
   // Guardar nueva ubicación o actualizar existente
   async function saveUbicacion() {
     try {
+      // Validación de nombre (campo requerido)
       if (!ubicacionModal.nombre.trim()) {
-        alert('Por favor ingresa el nombre de la cancha');
+        alert('❌ Por favor ingresa el nombre de la cancha');
+        return;
+      }
+      
+      // Validación de dirección (CP-035)
+      if (!ubicacionModal.direccion || ubicacionModal.direccion.trim().length < 10) {
+        alert('❌ Por favor ingresa una dirección completa (mínimo 10 caracteres)');
+        return;
+      }
+
+      // Validación de marcador en mapa OBLIGATORIO (CP-034, CP-035)
+      if (!ubicacionModal.latitud || !ubicacionModal.longitud) {
+        alert('❌ Por favor haz clic en el mapa para marcar la ubicación exacta de la cancha');
+        return;
+      }
+
+      // Validar que el usuario haya colocado el marcador después de escribir la dirección
+      if (!ubicacionModal.marcadorColocado) {
+        alert('❌ Por favor haz clic en el PIN AZUL � del mapa para actualizar la ubicación antes de guardar');
         return;
       }
 
@@ -387,23 +414,6 @@ export default function DashboardOrganizador() {
 
       setUbicacionModal({ ...ubicacionModal, saving: true });
 
-      // Si no hay dirección pero sí hay coordenadas, buscar la dirección
-      let direccion = ubicacionModal.direccion?.trim() || '';
-      if (!direccion && ubicacionModal.latitud && ubicacionModal.longitud) {
-        try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${ubicacionModal.latitud}&lon=${ubicacionModal.longitud}`
-          );
-          const data = await response.json();
-          if (data && data.display_name) {
-            direccion = data.display_name;
-          }
-        } catch (error) {
-          logger.error('Error obteniendo dirección automáticamente:', error);
-          // Continuar sin dirección
-        }
-      }
-
       const token = localStorage.getItem("token");
       const isEditing = ubicacionModal.editingId;
       const url = isEditing ? `/api/ubicaciones/${ubicacionModal.editingId}` : "/api/ubicaciones";
@@ -417,26 +427,31 @@ export default function DashboardOrganizador() {
         },
         body: JSON.stringify({
           nombre: ubicacionModal.nombre.trim(),
-          direccion: direccion,
+          direccion: ubicacionModal.direccion.trim(),
           latitud: ubicacionModal.latitud,
           longitud: ubicacionModal.longitud,
-          googleMapsUrl: ubicacionModal.latitud && ubicacionModal.longitud 
-            ? `https://www.google.com/maps?q=${ubicacionModal.latitud},${ubicacionModal.longitud}`
-            : null,
+          googleMapsUrl: `https://www.google.com/maps?q=${ubicacionModal.latitud},${ubicacionModal.longitud}`,
           canchaId: user?.canchaAsignada?._id
         }),
       });
 
-      if (!res.ok) throw new Error("Error al guardar ubicación");
+      const data = await res.json();
+      
+      if (!res.ok) {
+        // Mostrar mensaje de error específico del servidor (CP-036)
+        alert(data.message || "❌ Error al guardar ubicación");
+        setUbicacionModal({ ...ubicacionModal, saving: false });
+        return;
+      }
 
       // Recargar ubicaciones Y partidos para reflejar los cambios
       await Promise.all([loadUbicaciones(), loadGames()]);
       
-      setUbicacionModal({ open: false, nombre: '', direccion: '', latitud: null, longitud: null, googleMapsUrl: '', saving: false, editingId: null });
+      setUbicacionModal({ open: false, nombre: '', direccion: '', latitud: null, longitud: null, googleMapsUrl: '', saving: false, editingId: null, marcadorColocado: false });
       alert(isEditing ? '✅ Ubicación actualizada exitosamente' : '✅ Ubicación agregada exitosamente');
     } catch (error) {
       logger.error("Error al guardar ubicación:", error);
-      alert('Error al guardar la ubicación');
+      alert('❌ Error al guardar la ubicación. Por favor intenta nuevamente.');
       setUbicacionModal({ ...ubicacionModal, saving: false });
     }
   }
@@ -601,6 +616,33 @@ export default function DashboardOrganizador() {
 
   async function handleSave(e) {
     e.preventDefault();
+    
+    // Validar campos
+    const errors = {};
+    
+    if (!currentGame.name || currentGame.name.trim().length < 3) {
+      errors.name = "⚠️ El nombre del partido debe tener al menos 3 caracteres.";
+    }
+    
+    if (!currentGame.date) {
+      errors.date = "⚠️ La fecha es obligatoria.";
+    }
+    
+    if (!currentGame.time) {
+      errors.time = "⚠️ La hora es obligatoria.";
+    }
+    
+    if (!currentGame.ubicacionId && !currentGame.location) {
+      errors.location = "⚠️ Debes seleccionar una ubicación.";
+    }
+    
+    // Si hay errores, mostrarlos y no continuar
+    if (Object.keys(errors).length > 0) {
+      setGameErrors(errors);
+      alert('⚠️ Por favor completa todos los campos correctamente.');
+      return;
+    }
+    
     try {
       // Validar fecha
       const gameDateTime = new Date(`${currentGame.date}T${currentGame.time}`);
@@ -634,6 +676,7 @@ export default function DashboardOrganizador() {
       setModalOpen(false);
       setEditingId(null);
       setCurrentGame(initialGame);
+      setGameErrors({}); // Limpiar errores
       
       // Recargar en paralelo
       await Promise.all([loadGames(), loadStats()]);
@@ -655,8 +698,11 @@ export default function DashboardOrganizador() {
       // Actualización optimista de UI
       setGames(prev => prev.filter(g => g._id !== gameId));
       loadStats(); // Recargar stats en background
+      
+      // Mensaje de confirmación (CP-033)
+      alert('✅ Partido eliminado exitosamente');
     } catch (err) {
-      alert(err.message || "Error al eliminar");
+      alert(err.message || "❌ Error al eliminar el partido");
       loadGames(); // Recargar si falló
     }
   }
@@ -693,6 +739,33 @@ export default function DashboardOrganizador() {
       loadGames(); // Recargar en background
     } catch (err) {
       alert(err.message || "Error al asignar");
+    }
+  }
+
+  // Función para cargar el historial de un árbitro
+  async function loadHistorialArbitro(arbitro) {
+    setHistorialModal({ open: true, arbitro, historial: [], loading: true });
+    
+    try {
+      const res = await fetch(`/api/games/arbitro/${arbitro._id}/historial`, {
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        }
+      });
+      
+      if (!res.ok) throw new Error("Error al cargar historial");
+      
+      const data = await res.json();
+      setHistorialModal(prev => ({ 
+        ...prev, 
+        arbitro: data.arbitro, // Usar datos actualizados del árbitro
+        historial: data.historial || [], 
+        loading: false 
+      }));
+    } catch (err) {
+      console.error("Error al cargar historial:", err);
+      setHistorialModal(prev => ({ ...prev, loading: false }));
+      alert("No se pudo cargar el historial del árbitro");
     }
   }
 
@@ -2199,12 +2272,18 @@ export default function DashboardOrganizador() {
                   <input
                     type="text"
                     id="name"
-                    className="form-input"
+                    className={`form-input ${gameErrors.name ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
                     placeholder="Ej: Liga Regional - Fecha 5"
                     value={currentGame.name}
-                    onChange={(e) => setCurrentGame({ ...currentGame, name: e.target.value })}
+                    onChange={(e) => {
+                      setCurrentGame({ ...currentGame, name: e.target.value });
+                      if (gameErrors.name) {
+                        setGameErrors({ ...gameErrors, name: "" });
+                      }
+                    }}
                     required
                   />
+                  {gameErrors.name && <p className="form-error">{gameErrors.name}</p>}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2213,12 +2292,18 @@ export default function DashboardOrganizador() {
                     <input
                       type="date"
                       id="date"
-                      className="form-input"
+                      className={`form-input ${gameErrors.date ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
                       value={currentGame.date}
                       min={new Date().toISOString().split('T')[0]}
-                      onChange={(e) => setCurrentGame({ ...currentGame, date: e.target.value })}
+                      onChange={(e) => {
+                        setCurrentGame({ ...currentGame, date: e.target.value });
+                        if (gameErrors.date) {
+                          setGameErrors({ ...gameErrors, date: "" });
+                        }
+                      }}
                       required
                     />
+                    {gameErrors.date && <p className="form-error">{gameErrors.date}</p>}
                   </div>
 
                   <div className="form-group">
@@ -2226,11 +2311,17 @@ export default function DashboardOrganizador() {
                     <input
                       type="time"
                       id="time"
-                      className="form-input"
+                      className={`form-input ${gameErrors.time ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
                       value={currentGame.time}
-                      onChange={(e) => setCurrentGame({ ...currentGame, time: e.target.value })}
+                      onChange={(e) => {
+                        setCurrentGame({ ...currentGame, time: e.target.value });
+                        if (gameErrors.time) {
+                          setGameErrors({ ...gameErrors, time: "" });
+                        }
+                      }}
                       required
                     />
+                    {gameErrors.time && <p className="form-error">{gameErrors.time}</p>}
                   </div>
                 </div>
 
@@ -2238,7 +2329,7 @@ export default function DashboardOrganizador() {
                   <label htmlFor="location" className="form-label">Ubicación</label>
                   <select
                     id="location"
-                    className="form-input"
+                    className={`form-input ${gameErrors.location ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
                     value={currentGame.ubicacionId || currentGame.location}
                     onChange={(e) => {
                       const selectedUbicacion = ubicaciones.find(ub => ub._id === e.target.value);
@@ -2247,6 +2338,9 @@ export default function DashboardOrganizador() {
                         location: selectedUbicacion ? selectedUbicacion.nombre : '',
                         ubicacionId: e.target.value 
                       });
+                      if (gameErrors.location) {
+                        setGameErrors({ ...gameErrors, location: "" });
+                      }
                     }}
                     required
                   >
@@ -2257,6 +2351,7 @@ export default function DashboardOrganizador() {
                       </option>
                     ))}
                   </select>
+                  {gameErrors.location && <p className="form-error">{gameErrors.location}</p>}
                   {ubicaciones.length === 0 && (
                     <p className="text-sm text-gray-500 mt-1">
                       No tienes ubicaciones guardadas. <a href="#ubicaciones" className="text-primary-600 hover:underline">Agrega una aquí</a>
@@ -2287,8 +2382,8 @@ export default function DashboardOrganizador() {
 
       {/* Modal postulados */}
       {postuladosModal.open && (
-        <div className="modal-overlay" onClick={() => setPostuladosModal({ open: false, postulados: [], gameId: null })}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
               <h3 className="text-lg font-display font-semibold text-gray-800">Árbitros Postulados</h3>
             </div>
@@ -2354,15 +2449,27 @@ export default function DashboardOrganizador() {
                           </div>
                         </div>
                       </div>
-                      <button 
-                        className="btn btn-sm btn-primary flex-shrink-0 ml-3" 
-                        onClick={() => assignArbitro(postuladosModal.gameId, arbitro._id)}
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                        </svg>
-                        Asignar
-                      </button>
+                      <div className="flex gap-2 flex-shrink-0 ml-3">
+                        <button 
+                          className="btn btn-sm btn-ghost text-blue-600 hover:bg-blue-50" 
+                          onClick={() => loadHistorialArbitro(arbitro)}
+                          title="Ver historial de partidos"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Historial
+                        </button>
+                        <button 
+                          className="btn btn-sm btn-primary" 
+                          onClick={() => assignArbitro(postuladosModal.gameId, arbitro._id)}
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                          Asignar
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2372,6 +2479,118 @@ export default function DashboardOrganizador() {
               <button 
                 className="btn btn-ghost" 
                 onClick={() => setPostuladosModal({ open: false, postulados: [], gameId: null })}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Historial de Árbitro */}
+      {historialModal.open && (
+        <div className="modal-overlay">
+          <div className="modal-content max-w-3xl">
+            <div className="modal-header">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {historialModal.arbitro?.imagenPerfil ? (
+                    <img 
+                      src={historialModal.arbitro.imagenPerfil} 
+                      alt={historialModal.arbitro.nombre} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-blue-100 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-display font-semibold text-gray-800">
+                    Historial de {historialModal.arbitro?.nombre || 'Árbitro'}
+                  </h3>
+                  <p className="text-sm text-gray-600">{historialModal.arbitro?.email}</p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-body">
+              {historialModal.loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+                  <p className="text-gray-600 mt-4">Cargando historial...</p>
+                </div>
+              ) : historialModal.historial.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                  </svg>
+                  <p className="text-gray-600">Sin partidos arbitrados</p>
+                  <p className="text-sm text-gray-500 mt-2">Este árbitro aún no ha completado ningún partido</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {historialModal.historial.map((partido) => (
+                    <div key={partido._id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-800">{partido.nombre}</h4>
+                          <p className="text-sm text-gray-600 mt-1">
+                            <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                            </svg>
+                            {new Date(partido.fecha).toLocaleDateString('es-ES', { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            })}
+                          </p>
+                          {partido.creadorId && (
+                            <p className="text-sm text-gray-500 mt-1">
+                              Organizado por: {partido.creadorId.nombre || 'Organizador'}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {partido.calificacion && partido.calificacion > 0 ? (
+                            <div>
+                              <div className="flex items-center justify-end">
+                                {[...Array(5)].map((_, i) => (
+                                  <svg 
+                                    key={i} 
+                                    className={`w-4 h-4 ${i < partido.calificacion ? 'text-yellow-400' : 'text-gray-300'}`}
+                                    fill="currentColor" 
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                  </svg>
+                                ))}
+                              </div>
+                              <span className="text-sm text-gray-600 mt-1 block">
+                                {partido.calificacion.toFixed(1)} estrellas
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500 italic">Sin calificación</span>
+                          )}
+                          {partido.comentario && (
+                            <p className="text-xs text-gray-600 mt-2 max-w-xs text-right">
+                              "{partido.comentario}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-ghost" 
+                onClick={() => setHistorialModal({ open: false, arbitro: null, historial: [], loading: false })}
               >
                 Cerrar
               </button>
@@ -2629,8 +2848,8 @@ export default function DashboardOrganizador() {
 
       {/* Modal selección de reporte */}
       {reporteModal.open && (
-        <div className="modal-overlay" onClick={() => !reporteModal.cargando && setReporteModal({ ...reporteModal, open: false })}>
-          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content max-w-md">
             <div className="modal-header">
               <h3 className="text-lg font-display font-semibold text-gray-800">Generar Reporte PDF</h3>
               {!reporteModal.cargando && (
@@ -2760,7 +2979,7 @@ export default function DashboardOrganizador() {
               {!ubicacionModal.saving && (
                 <button 
                   className="text-gray-400 hover:text-gray-600"
-                  onClick={() => setUbicacionModal({ open: false, nombre: '', direccion: '', latitud: null, longitud: null, googleMapsUrl: '', saving: false, editingId: null })}
+                  onClick={() => setUbicacionModal({ open: false, nombre: '', direccion: '', latitud: null, longitud: null, googleMapsUrl: '', saving: false, editingId: null, marcadorColocado: false })}
                 >
                   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
@@ -2794,81 +3013,73 @@ export default function DashboardOrganizador() {
                         type="text"
                         id="ubicacion-direccion"
                         className="form-input pr-10"
-                        placeholder="Ej: Calle Principal #123, Colima"
+                        placeholder="Haz clic en el mapa y luego en el botón 📍 para obtener la dirección"
                         value={ubicacionModal.direccion}
-                        onChange={(e) => setUbicacionModal({ ...ubicacionModal, direccion: e.target.value })}
+                        onChange={(e) => setUbicacionModal({ 
+                          ...ubicacionModal, 
+                          direccion: e.target.value
+                          // No resetear marcadorColocado aquí, se resetea solo al mover el pin
+                        })}
                         disabled={ubicacionModal.saving}
+                        readOnly  // Hacer el campo de solo lectura para que solo se actualice con el botón
                       />
                       <button
                         type="button"
                         onClick={async () => {
-                          if (!ubicacionModal.direccion) {
-                            alert('Ingresa una dirección primero');
+                          // Verificar que haya un pin colocado en el mapa
+                          if (!ubicacionModal.latitud || !ubicacionModal.longitud) {
+                            alert('⚠️ Primero coloca el PIN en el mapa haciendo clic en la ubicación');
                             return;
                           }
+                          
                           try {
-                            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(ubicacionModal.direccion)}`);
+                            // Geocodificación INVERSA: obtener dirección desde coordenadas
+                            const response = await fetch(
+                              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${ubicacionModal.latitud}&lon=${ubicacionModal.longitud}&zoom=18&addressdetails=1`
+                            );
                             const data = await response.json();
-                            if (data && data.length > 0) {
-                              const lat = parseFloat(data[0].lat);
-                              const lng = parseFloat(data[0].lon);
+                            
+                            if (data && data.display_name) {
+                              setUbicacionModal(prev => ({
+                                ...prev,
+                                direccion: data.display_name,
+                                marcadorColocado: true // ✅ Confirmar que el marcador está colocado
+                              }));
                               
-                              setUbicacionModal({
-                                ...ubicacionModal,
-                                latitud: lat,
-                                longitud: lng,
-                                direccion: data[0].display_name
-                              });
-
-                              // Centrar el mapa y colocar marcador
-                              if (mapRef.current) {
-                                mapRef.current.setView([lat, lng], 16);
-                                
-                                // Remover marcador anterior si existe
-                                if (markerRef.current) {
-                                  markerRef.current.remove();
-                                }
-                                
-                                // Crear nuevo marcador arrastrable
-                                const marker = window.L.marker([lat, lng], { draggable: true }).addTo(mapRef.current);
-                                markerRef.current = marker;
-
-                                // Actualizar coordenadas cuando se arrastra el marcador
-                                marker.on('dragend', function(e) {
-                                  const pos = e.target.getLatLng();
-                                  setUbicacionModal(prev => ({
-                                    ...prev,
-                                    latitud: pos.lat,
-                                    longitud: pos.lng
-                                  }));
-                                });
-                              }
-                              
-                              alert('✅ Ubicación encontrada en el mapa');
+                              alert('✅ Dirección actualizada desde el mapa');
                             } else {
-                              alert('⚠️ No se encontró la ubicación. Intenta con otra dirección.');
+                              alert('⚠️ No se pudo obtener la dirección. Intenta con otra ubicación.');
                             }
                           } catch (error) {
-                            logger.error('Error buscando ubicación:', error);
-                            alert('Error al buscar la ubicación');
+                            logger.error('Error obteniendo dirección:', error);
+                            alert('❌ Error al obtener la dirección desde el mapa');
                           }
                         }}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-primary-600 hover:text-primary-700 transition-colors"
-                        title="Buscar en el mapa"
-                        disabled={ubicacionModal.saving}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-primary-600 hover:text-primary-700 transition-colors disabled:opacity-50"
+                        title="📌 Obtener dirección desde el PIN del mapa"
+                        disabled={ubicacionModal.saving || !ubicacionModal.latitud || !ubicacionModal.longitud}
                       >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
-                        </svg>
+                        <span className="text-xl">📌</span>
                       </button>
                     </div>
                     {ubicacionModal.latitud && ubicacionModal.longitud && (
-                      <p className="text-xs text-green-600 mt-2 flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-                        </svg>
-                        Ubicación encontrada
-                      </p>
+                      <div className="mt-2">
+                        {!ubicacionModal.marcadorColocado ? (
+                          <p className="text-xs text-orange-600 flex items-center">
+                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                            </svg>
+                            Haz clic en el botón 📌 para actualizar la dirección desde el PIN
+                          </p>
+                        ) : (
+                          <p className="text-xs text-green-600 flex items-center">
+                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                            </svg>
+                            Ubicación confirmada - Puedes guardar
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                   {ubicacionModal.latitud && ubicacionModal.longitud && (
@@ -2899,7 +3110,7 @@ export default function DashboardOrganizador() {
                 {!ubicacionModal.saving && (
                   <button 
                     className="btn btn-danger" 
-                    onClick={() => setUbicacionModal({ open: false, nombre: '', direccion: '', latitud: null, longitud: null, googleMapsUrl: '', saving: false, editingId: null })}
+                    onClick={() => setUbicacionModal({ open: false, nombre: '', direccion: '', latitud: null, longitud: null, googleMapsUrl: '', saving: false, editingId: null, marcadorColocado: false })}
                   >
                     Cancelar
                   </button>
@@ -2934,8 +3145,8 @@ export default function DashboardOrganizador() {
 
       {/* Modal de Detalles del Árbitro */}
       {arbitroDetalleModal.open && arbitroDetalleModal.arbitro && (
-        <div className="modal-overlay" onClick={() => setArbitroDetalleModal({ open: false, arbitro: null })}>
-          <div className="modal-content max-w-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content max-w-2xl">
             <div className="modal-header bg-gradient-to-r from-blue-500 to-blue-600 text-white">
               <div className="flex items-center space-x-3">
                 <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-white shadow-lg flex-shrink-0">
@@ -3073,8 +3284,8 @@ export default function DashboardOrganizador() {
 
       {/* Modal de Calificación de Árbitro */}
       {calificacionModal.open && calificacionModal.arbitro && (
-        <div className="modal-overlay" onClick={() => !calificacionModal.loading && setCalificacionModal({ open: false, partido: null, arbitro: null, estrellas: 0, comentario: '', loading: false })}>
-          <div className="modal-content max-w-lg w-full mx-4 my-4" onClick={(e) => e.stopPropagation()} style={{ maxHeight: 'calc(100vh - 2rem)' }}>
+        <div className="modal-overlay">
+          <div className="modal-content max-w-lg w-full mx-4 my-4" style={{ maxHeight: 'calc(100vh - 2rem)' }}>
             <div className="modal-header bg-gradient-to-r from-yellow-400 to-orange-500 text-white">
               <h3 className="text-base sm:text-lg font-bold flex items-center">
                 <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">

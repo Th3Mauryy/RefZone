@@ -13,12 +13,53 @@ router.post('/', verifyToken, async (req, res) => {
     try {
         const { name, date, time, location, canchaId, ubicacionId } = req.body;
         
-        // Validación rápida de fecha
+        // Validación rápida de fecha pasada
         const gameDateTime = new Date(`${date}T${time}`);
-        if (gameDateTime < new Date()) {
+        const now = new Date();
+        
+        if (gameDateTime < now) {
             return res.status(400).json({ 
                 message: 'No se puede crear un partido con fecha pasada' 
             });
+        }
+        
+        // Validación: Mínimo 2 horas de anticipación (CP-022)
+        const twoHoursFromNow = new Date(now.getTime() + (2 * 60 * 60 * 1000));
+        if (gameDateTime < twoHoursFromNow) {
+            return res.status(400).json({ 
+                message: 'El partido debe programarse con al menos 2 horas de anticipación' 
+            });
+        }
+        
+        // Validación: No permitir nombres duplicados el mismo día (CP-042)
+        if (name && date) {
+            const nameNormalized = name.trim().toLowerCase();
+            
+            // Buscar si existe un partido con un nombre similar en la misma fecha
+            const partidosDelDia = await Game.find({
+                creadorId: req.user.id,
+                date: date
+            }).select('name').lean();
+            
+            // Verificar si hay equipos repetidos
+            for (const partido of partidosDelDia) {
+                const partidoNameNormalized = partido.name.trim().toLowerCase();
+                
+                // Extraer equipos del nombre (asumiendo formato "Equipo1 vs Equipo2")
+                const equiposNuevos = nameNormalized.split(/\s*vs\s*/).map(e => e.trim());
+                const equiposExistentes = partidoNameNormalized.split(/\s*vs\s*/).map(e => e.trim());
+                
+                // Verificar si algún equipo se repite
+                const hayRepeticion = equiposNuevos.some(equipo => 
+                    equiposExistentes.includes(equipo)
+                );
+                
+                if (hayRepeticion) {
+                    return res.status(400).json({ 
+                        message: `Ya existe un partido con el equipo "${equiposNuevos.find(e => equiposExistentes.includes(e))}" programado para el ${date}. No puedes tener el mismo equipo en múltiples partidos el mismo día.` 
+                    });
+                }
+            }
         }
         
         // Crear partido
@@ -763,6 +804,143 @@ router.get('/stats', verifyToken, async (req, res) => {
     } catch (err) {
         console.error("Error en /games/stats:", err);
         res.status(500).json({ total: 0, upcoming: 0, needsReferee: 0, error: err.message });
+    }
+});
+
+// Obtener historial de partidos de un árbitro (CP-016)
+router.get('/arbitro/:arbitroId/historial', verifyToken, async (req, res) => {
+    try {
+        const { arbitroId } = req.params;
+        
+        // Validar ID
+        if (!arbitroId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({ message: 'ID de árbitro inválido' });
+        }
+        
+        const User = require('../models/User');
+        
+        // Buscar árbitro con su historial de calificaciones
+        const arbitro = await User.findById(arbitroId)
+            .select('nombre email imagenPerfil calificacionPromedio totalCalificaciones calificaciones')
+            .populate('calificaciones.organizadorId', 'nombre')
+            .lean();
+        
+        if (!arbitro) {
+            return res.status(404).json({ message: 'Árbitro no encontrado' });
+        }
+        
+        // Buscar partidos finalizados del árbitro en el historial
+        const HistorialPartido = require('../models/HistorialPartido');
+        
+        const historialPartidos = await HistorialPartido.find({
+            arbitro: arbitroId,
+            estado: 'Finalizado'
+        })
+        .select('nombre fecha hora ubicacion originalId calificado')
+        .sort({ fechaEliminacion: -1 })
+        .limit(20)
+        .lean();
+        
+        // Combinar historial con calificaciones
+        const historialConCalificaciones = historialPartidos.map(partido => {
+            // Buscar calificación usando el _id del HistorialPartido, no el originalId
+            const calificacion = arbitro.calificaciones.find(
+                c => String(c.partidoId) === String(partido._id)
+            );
+            
+            return {
+                _id: partido.originalId,
+                nombre: partido.nombre,
+                fecha: partido.fecha,
+                hora: partido.hora,
+                ubicacion: partido.ubicacion,
+                calificacion: calificacion ? calificacion.estrellas : null,
+                comentario: calificacion ? calificacion.comentario : null,
+                organizador: calificacion?.organizadorId?.nombre || null
+            };
+        });
+        
+        res.status(200).json({
+            arbitro: {
+                nombre: arbitro.nombre || 'Árbitro',
+                email: arbitro.email,
+                imagenPerfil: arbitro.imagenPerfil,
+                calificacionPromedio: arbitro.calificacionPromedio || 0,
+                totalCalificaciones: arbitro.totalCalificaciones || 0
+            },
+            historial: historialConCalificaciones
+        });
+    } catch (error) {
+        console.error('Error al obtener historial:', error);
+        res.status(500).json({ message: 'Error al obtener el historial del árbitro' });
+    }
+});
+
+// Ruta alternativa para información detallada del árbitro (mantener compatibilidad)
+router.get('/arbitro/:arbitroId/info', verifyToken, async (req, res) => {
+    try {
+        const { arbitroId } = req.params;
+        
+        // Validar ID
+        if (!arbitroId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({ message: 'ID de árbitro inválido' });
+        }
+        
+        // Buscar partidos finalizados del árbitro en el historial
+        const HistorialPartido = require('../models/HistorialPartido');
+        
+        const historial = await HistorialPartido.find({
+            arbitro: arbitroId,
+            estado: 'Finalizado'
+        })
+        .select('nombre fecha hora ubicacion canchaId estado mesPartido anoPartido')
+        .populate('canchaId', 'nombre')
+        .sort({ anoPartido: -1, mesPartido: -1, fecha: -1 })
+        .limit(20) // Últimos 20 partidos
+        .lean();
+        
+        // También buscar partidos actuales/futuros del árbitro
+        const partidosActuales = await Game.find({
+            arbitro: arbitroId
+        })
+        .select('name date time location canchaId')
+        .populate('canchaId', 'nombre')
+        .sort({ date: -1 })
+        .limit(10)
+        .lean();
+        
+        // Buscar info del árbitro
+        const User = require('../models/User');
+        const arbitro = await User.findById(arbitroId)
+            .select('nombre calificacionPromedio totalCalificaciones')
+            .lean();
+        
+        res.status(200).json({
+            arbitro: {
+                nombre: arbitro?.nombre || 'Árbitro',
+                calificacionPromedio: arbitro?.calificacionPromedio || 0,
+                totalCalificaciones: arbitro?.totalCalificaciones || 0
+            },
+            historialFinalizados: historial.map(h => ({
+                nombre: h.nombre,
+                fecha: h.fecha,
+                hora: h.hora,
+                ubicacion: h.ubicacion,
+                cancha: h.canchaId?.nombre || 'N/A',
+                estado: h.estado
+            })),
+            partidosRecientes: partidosActuales.map(p => ({
+                nombre: p.name,
+                fecha: p.date,
+                hora: p.time,
+                ubicacion: p.location,
+                cancha: p.canchaId?.nombre || 'N/A'
+            })),
+            totalPartidos: historial.length + partidosActuales.length
+        });
+    } catch (error) {
+        console.error('Error al obtener historial:', error);
+        res.status(500).json({ message: 'Error al obtener el historial del árbitro' });
     }
 });
 

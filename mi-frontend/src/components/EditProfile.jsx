@@ -7,6 +7,9 @@ export default function EditProfile() {
     contacto: "",
     experiencia: "",
     imagenPerfil: null,
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
   });
   const [user, setUser] = useState({});
   const [isLoading, setIsLoading] = useState(true);
@@ -14,6 +17,7 @@ export default function EditProfile() {
   const [errors, setErrors] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
   const [imageFile, setImageFile] = useState(null);
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,9 +77,74 @@ export default function EditProfile() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
-    if (errors[name]) {
-      setErrors({ ...errors, [name]: "" });
+    
+    // Validaciones en tiempo real
+    const newErrors = { ...errors };
+    delete newErrors[name]; // Limpiar error del campo actual
+    
+    // Validación de email
+    if (name === 'email') {
+      if (value && value.length > 0) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value)) {
+          newErrors.email = "⚠️ Por favor, ingresa un correo electrónico válido.";
+        }
+      }
     }
+    
+    // Validación de contacto
+    if (name === 'contacto') {
+      if (value && value.length > 0) {
+        if (!/^\d+$/.test(value)) {
+          newErrors.contacto = "⚠️ Solo se permiten números.";
+        } else if (value.length !== 10) {
+          newErrors.contacto = "⚠️ Debe contener exactamente 10 dígitos.";
+        }
+      }
+    }
+    
+    // Validación de experiencia
+    if (name === 'experiencia') {
+      if (value && value.length > 0 && value.trim().length < 10) {
+        newErrors.experiencia = "⚠️ Describe tu experiencia con al menos 10 caracteres.";
+      }
+    }
+    
+    // Validación de contraseña actual
+    if (name === 'currentPassword') {
+      if (!value && (form.newPassword || form.confirmPassword)) {
+        newErrors.currentPassword = "⚠️ Debes ingresar tu contraseña actual.";
+      }
+    }
+    
+    // Validación de contraseña nueva
+    if (name === 'newPassword') {
+      if (value && value.length > 0) {
+        if (value.length < 8) {
+          newErrors.newPassword = "⚠️ Contraseña débil: debe tener al menos 8 caracteres.";
+        } else if (!/[A-Z]/.test(value)) {
+          newErrors.newPassword = "⚠️ Contraseña débil: debe incluir al menos una mayúscula.";
+        } else if (!/[0-9]/.test(value)) {
+          newErrors.newPassword = "⚠️ Contraseña débil: debe incluir al menos un número.";
+        }
+      }
+      
+      // Verificar que coincida con confirmPassword si ya se ingresó
+      if (form.confirmPassword && value !== form.confirmPassword) {
+        newErrors.confirmPassword = "⚠️ Las contraseñas no coinciden.";
+      } else if (form.confirmPassword && value === form.confirmPassword) {
+        delete newErrors.confirmPassword;
+      }
+    }
+    
+    // Validación de confirmar contraseña
+    if (name === 'confirmPassword') {
+      if (value && form.newPassword && value !== form.newPassword) {
+        newErrors.confirmPassword = "⚠️ Las contraseñas no coinciden.";
+      }
+    }
+    
+    setErrors(newErrors);
   };
 
   const handleImageChange = (e) => {
@@ -110,15 +179,40 @@ export default function EditProfile() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (form.email && !emailRegex.test(form.email)) {
-      newErrors.email = "Ingresa un email válido";
+      newErrors.email = "⚠️ Ingresa un email válido";
     }
 
     if (form.contacto && !contactRegex.test(form.contacto)) {
-      newErrors.contacto = "El contacto debe contener exactamente 10 dígitos";
+      newErrors.contacto = "⚠️ El contacto debe contener exactamente 10 dígitos";
     }
 
     if (form.experiencia && form.experiencia.length < 10) {
-      newErrors.experiencia = "Describe tu experiencia con al menos 10 caracteres";
+      newErrors.experiencia = "⚠️ Describe tu experiencia con al menos 10 caracteres";
+    }
+    
+    // Validaciones de contraseñas
+    if (form.currentPassword || form.newPassword || form.confirmPassword) {
+      if (!form.currentPassword) {
+        newErrors.currentPassword = "⚠️ Debes ingresar tu contraseña actual";
+      }
+      
+      if (!form.newPassword) {
+        newErrors.newPassword = "⚠️ Debes ingresar una nueva contraseña";
+      } else {
+        if (form.newPassword.length < 8) {
+          newErrors.newPassword = "⚠️ Contraseña débil: debe tener al menos 8 caracteres";
+        } else if (!/[A-Z]/.test(form.newPassword)) {
+          newErrors.newPassword = "⚠️ Contraseña débil: debe incluir al menos una mayúscula";
+        } else if (!/[0-9]/.test(form.newPassword)) {
+          newErrors.newPassword = "⚠️ Contraseña débil: debe incluir al menos un número";
+        }
+      }
+      
+      if (!form.confirmPassword) {
+        newErrors.confirmPassword = "⚠️ Debes confirmar tu nueva contraseña";
+      } else if (form.newPassword !== form.confirmPassword) {
+        newErrors.confirmPassword = "⚠️ Las contraseñas no coinciden";
+      }
     }
 
     setErrors(newErrors);
@@ -137,6 +231,24 @@ export default function EditProfile() {
       formData.append('email', form.email);
       formData.append('contacto', form.contacto);
       formData.append('experiencia', form.experiencia);
+      
+      // Agregar contraseñas si se están cambiando (CP-013)
+      if (form.currentPassword || form.newPassword) {
+        if (!form.currentPassword || !form.newPassword) {
+          alert("Para cambiar la contraseña, debes proporcionar tanto la contraseña actual como la nueva");
+          setIsSaving(false);
+          return;
+        }
+        
+        if (form.newPassword !== form.confirmPassword) {
+          alert("Las contraseñas nuevas no coinciden");
+          setIsSaving(false);
+          return;
+        }
+        
+        formData.append('currentPassword', form.currentPassword);
+        formData.append('newPassword', form.newPassword);
+      }
       
       if (imageFile) {
         formData.append('imagenPerfil', imageFile);
@@ -417,6 +529,91 @@ export default function EditProfile() {
                   disabled={isSaving}
                 />
                 {errors.experiencia && <p className="form-error">{errors.experiencia}</p>}
+              </div>
+
+              {/* Sección de cambio de contraseña (CP-013) */}
+              <div className="border-t pt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordSection(!showPasswordSection)}
+                  className="flex items-center justify-between w-full text-left p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-primary-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
+                    </svg>
+                    <span className="font-semibold text-gray-800">Cambiar Contraseña</span>
+                  </div>
+                  <svg 
+                    className={`w-5 h-5 text-gray-400 transition-transform ${showPasswordSection ? 'rotate-180' : ''}`} 
+                    fill="currentColor" 
+                    viewBox="0 0 20 20"
+                  >
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd"/>
+                  </svg>
+                </button>
+
+                {showPasswordSection && (
+                  <div className="mt-4 space-y-4 p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800 mb-4">
+                      <svg className="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                      </svg>
+                      La contraseña debe tener al menos 8 caracteres, incluir una mayúscula y un número.
+                    </p>
+
+                    <div className="form-group">
+                      <label htmlFor="currentPassword" className="form-label">
+                        Contraseña Actual
+                      </label>
+                      <input
+                        type="password"
+                        id="currentPassword"
+                        name="currentPassword"
+                        placeholder="••••••••"
+                        value={form.currentPassword}
+                        onChange={handleChange}
+                        className={`form-input ${errors.currentPassword ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
+                        disabled={isSaving}
+                      />
+                      {errors.currentPassword && <p className="form-error">{errors.currentPassword}</p>}
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="newPassword" className="form-label">
+                        Nueva Contraseña
+                      </label>
+                      <input
+                        type="password"
+                        id="newPassword"
+                        name="newPassword"
+                        placeholder="••••••••"
+                        value={form.newPassword}
+                        onChange={handleChange}
+                        className={`form-input ${errors.newPassword ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
+                        disabled={isSaving}
+                      />
+                      {errors.newPassword && <p className="form-error">{errors.newPassword}</p>}
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="confirmPassword" className="form-label">
+                        Confirmar Nueva Contraseña
+                      </label>
+                      <input
+                        type="password"
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        placeholder="••••••••"
+                        value={form.confirmPassword}
+                        onChange={handleChange}
+                        className={`form-input ${errors.confirmPassword ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
+                        disabled={isSaving}
+                      />
+                      {errors.confirmPassword && <p className="form-error">{errors.confirmPassword}</p>}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 pt-6">

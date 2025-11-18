@@ -762,8 +762,8 @@ export default function Dashboard() {
 
       {/* Modals */}
       {applyModal.open && (
-        <div className="modal-overlay" onClick={() => !applyingGames.has(applyModal.gameId) && setApplyModal({ open: false, gameId: null })}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
               <h3 className="text-lg font-display font-semibold text-gray-800">Confirmar Postulación</h3>
             </div>
@@ -811,8 +811,8 @@ export default function Dashboard() {
       )}
 
       {cancelModal.open && (
-        <div className="modal-overlay" onClick={() => setCancelModal({ open: false, gameId: null })}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
               <h3 className="text-lg font-display font-semibold text-gray-800">Cancelar Postulación</h3>
             </div>

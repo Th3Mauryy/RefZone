@@ -40,6 +40,9 @@ router.post('/registro', upload.single('imagenPerfil'), async (req, res) => {
     try {
         const { email, password, nombre, edad, contacto, experiencia } = req.body;
 
+        // Array para acumular errores (CP-041)
+        const errors = [];
+
         // Validaciones rápidas ANTES de procesar
         if (!email || !password || !nombre) {
             return res.status(400).json({ message: 'Email, contraseña y nombre son requeridos' });
@@ -47,18 +50,45 @@ router.post('/registro', upload.single('imagenPerfil'), async (req, res) => {
 
         const edadNum = parseInt(edad);
         if (isNaN(edadNum) || edadNum < 18 || edadNum > 50) {
-            return res.status(400).json({ message: 'La edad debe ser entre 18 y 50' });
+            errors.push('La edad debe ser entre 18 y 50');
         }
 
         if (!/^\d{10}$/.test(contacto)) {
-            return res.status(400).json({ message: 'El contacto debe tener 10 dígitos' });
+            errors.push('El contacto debe tener 10 dígitos');
+        }
+        
+        // Validación de experiencia
+        if (!experiencia || experiencia.trim().length < 10) {
+            errors.push('La experiencia debe tener al menos 10 caracteres');
+        }
+        
+        // Validación de imagen de perfil OBLIGATORIA
+        if (!req.file) {
+            errors.push('Debes subir una foto de perfil');
+        }
+        
+        // Validación de contraseña fuerte (CP-040, CP-041)
+        if (password.length < 8) {
+            errors.push('La contraseña debe tener al menos 8 caracteres');
+        } else if (!/[A-Z]/.test(password)) {
+            errors.push('La contraseña debe incluir al menos una mayúscula');
+        } else if (!/[0-9]/.test(password)) {
+            errors.push('La contraseña debe incluir al menos un número');
         }
 
         // CRÍTICO: Verificar email duplicado ANTES de procesar imagen
         const normalizedEmail = email.trim().toLowerCase();
         const existingUser = await User.findOne({ email: normalizedEmail }).select('_id').lean();
         if (existingUser) {
-            return res.status(409).json({ message: 'El email ya está registrado' });
+            errors.push('El email ya está registrado');
+        }
+        
+        // Si hay errores, retornar todos juntos (CP-041)
+        if (errors.length > 0) {
+            return res.status(400).json({ 
+                message: errors.join('. '),
+                errors: errors
+            });
         }
 
         // Crear usuario (imagen ya subida por multer)
@@ -268,7 +298,7 @@ router.get('/perfil/:id', verifyToken, async (req, res) => {
 router.put('/editar-perfil', verifyToken, upload.single('imagenPerfil'), async (req, res) => {
     try {
         const userId = req.user.id;
-        const { email, contacto, experiencia } = req.body;
+        const { email, contacto, experiencia, currentPassword, newPassword } = req.body;
 
         // Validaciones
         if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
@@ -282,11 +312,42 @@ router.put('/editar-perfil', verifyToken, upload.single('imagenPerfil'), async (
         if (experiencia && experiencia.length < 10) {
             return res.status(400).json({ message: 'Describe tu experiencia con al menos 10 caracteres.' });
         }
+        
+        // Validación de cambio de contraseña (CP-013)
+        if (newPassword || currentPassword) {
+            if (!currentPassword || !newPassword) {
+                return res.status(400).json({ 
+                    message: 'Para cambiar la contraseña, debes proporcionar tanto la contraseña actual como la nueva' 
+                });
+            }
+            
+            // Validar contraseña nueva fuerte
+            if (newPassword.length < 8) {
+                return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres' });
+            }
+            if (!/[A-Z]/.test(newPassword)) {
+                return res.status(400).json({ message: 'La nueva contraseña debe incluir al menos una mayúscula' });
+            }
+            if (!/[0-9]/.test(newPassword)) {
+                return res.status(400).json({ message: 'La nueva contraseña debe incluir al menos un número' });
+            }
+        }
 
         // Buscar el usuario actual
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+        
+        // Si se quiere cambiar contraseña, verificar la actual
+        if (currentPassword && newPassword) {
+            const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+            if (!isPasswordValid) {
+                return res.status(401).json({ message: 'La contraseña actual es incorrecta' });
+            }
+            
+            // Hash de la nueva contraseña
+            user.password = newPassword; // El pre-save hook del modelo la hasheará automáticamente
         }
 
         // Verificar si el email ya existe en otro usuario
@@ -298,28 +359,20 @@ router.put('/editar-perfil', verifyToken, upload.single('imagenPerfil'), async (
         }
 
         // Preparar datos para actualizar
-        const updateData = {};
-        if (email) updateData.email = email.trim().toLowerCase();
-        if (contacto) updateData.contacto = contacto;
-        if (experiencia) updateData.experiencia = experiencia;
+        if (email) user.email = email.trim().toLowerCase();
+        if (contacto) user.contacto = contacto;
+        if (experiencia) user.experiencia = experiencia;
 
         // Si hay nueva imagen, actualizar
         if (req.file) {
-            updateData.imagenPerfil = req.file.path;
+            user.imagenPerfil = req.file.path;
         }
 
-        // Actualizar usuario
-        const updatedUser = await User.findByIdAndUpdate(userId, updateData, { 
-            new: true,
-            runValidators: true 
-        });
-
-        if (!updatedUser) {
-            return res.status(404).json({ message: 'Error al actualizar el usuario' });
-        }
+        // Guardar cambios
+        await user.save();
 
         // Responder con datos actualizados (sin contraseña)
-        const { password, ...userWithoutPassword } = updatedUser.toObject();
+        const { password, ...userWithoutPassword } = user.toObject();
         
         res.status(200).json({ 
             message: 'Perfil actualizado exitosamente',
