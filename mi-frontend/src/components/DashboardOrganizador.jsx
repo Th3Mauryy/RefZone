@@ -2201,7 +2201,8 @@ export default function DashboardOrganizador() {
                               <button 
                                 className="btn btn-sm btn-danger" 
                                 onClick={() => handleDelete(game._id)}
-                                title="Eliminar partido"
+                                disabled={haIniciado(game)}
+                                title={haIniciado(game) ? 'No se puede eliminar un partido que ya inició' : 'Eliminar partido'}
                               >
                                 <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd"/>

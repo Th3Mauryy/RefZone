@@ -88,9 +88,9 @@ export default function Register() {
         } else if (value.trim().length < 3) {
           newErrors.nombre = "⚠️ El nombre debe tener al menos 3 caracteres.";
         } else {
-          const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+          const nameRegex = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+$/; // Permite letras, números y espacios
           if (!nameRegex.test(value)) {
-            newErrors.nombre = "⚠️ El nombre solo puede contener letras y espacios.";
+            newErrors.nombre = "⚠️ El nombre solo puede contener letras, números y espacios.";
           }
         }
       }
@@ -135,7 +135,7 @@ export default function Register() {
   const validateForm = () => {
     const newErrors = {};
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+    const nameRegex = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+$/; // Permite letras, números y espacios
     const contactRegex = /^\d{10}$/;
 
     // Validación de email
@@ -162,7 +162,7 @@ export default function Register() {
     } else if (form.nombre.trim().length < 3) {
       newErrors.nombre = "⚠️ El nombre debe tener al menos 3 caracteres.";
     } else if (!nameRegex.test(form.nombre)) {
-      newErrors.nombre = "⚠️ El nombre solo puede contener letras y espacios.";
+      newErrors.nombre = "⚠️ El nombre solo puede contener letras, números y espacios.";
     }
     
     // Validación de edad
