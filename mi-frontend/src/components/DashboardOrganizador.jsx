@@ -992,7 +992,7 @@ export default function DashboardOrganizador() {
         return false;
       }
       
-      // Comparar con fecha actual
+      // Comparar con fecha actual EN ZONA HORARIA LOCAL DEL NAVEGADOR
       const ahora = new Date();
       const haIniciado = ahora >= fechaPartido;
       

@@ -29,8 +29,8 @@ function haFinalizadoPartido(partido) {
         // Agregar 1 HORA a la fecha del partido
         const fechaFinalizacion = new Date(fechaPartido.getTime() + 60 * 60 * 1000);
         
-        // Comparar con fecha actual
-        const ahora = new Date();
+        // Comparar con fecha actual EN ZONA HORARIA DE MÉXICO
+        const ahora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
         
         console.log(`🕐 Verificando finalización de partido "${partido.name}":`, {
             fechaOriginal: partido.date,
@@ -72,8 +72,8 @@ function haIniciado(partido) {
             return false;
         }
         
-        // Comparar con fecha actual
-        const ahora = new Date();
+        // Comparar con fecha actual EN ZONA HORARIA DE MÉXICO
+        const ahora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
         
         return ahora >= fechaPartido;
     } catch (error) {

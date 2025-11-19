@@ -749,7 +749,7 @@ router.get('/partidos-pendientes-calificacion', verifyToken, async (req, res) =>
                 
                 // Agregar 1 HORA a la fecha del partido para considerar que finalizó
                 const fechaFinalizacion = new Date(fechaPartido.getTime() + 60 * 60 * 1000);
-                const ahora = new Date();
+                const ahora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
                 
                 // Solo incluir si ya pasó 1 hora desde el inicio
                 const haFinalizado = ahora >= fechaFinalizacion;
