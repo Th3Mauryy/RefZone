@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { showSuccess, showError } from '../utils/toast';
 import logger from "../utils/logger";
 
 export default function Register() {
@@ -225,17 +228,17 @@ export default function Register() {
       const data = await response.json().catch(() => ({}));
       
       if (!response.ok) {
-        alert(data.message || "Error al registrar");
+        showError(data.message || "❌ Error al registrar");
         setIsLoading(false);
         return;
       }
       
-      // Registro exitoso - navegar inmediatamente
-      alert(`¡Bienvenido ${data.user?.nombre || 'al equipo'}! Tu cuenta ha sido creada exitosamente.`);
-      navigate("/", { replace: true });
+      // Registro exitoso - navegar con delay para que se vea el toast
+      showSuccess(`✅ ¡Bienvenido ${data.user?.nombre || 'al equipo'}! Tu cuenta ha sido creada exitosamente.`);
+      setTimeout(() => { navigate("/", { replace: true }); }, 2000);
     } catch (error) {
       logger.error('Error en registro:', error);
-      alert("Error de conexión. Verifica tu internet e intenta de nuevo.");
+      showError("❌ Error de conexión. Verifica tu internet e intenta de nuevo.");
       setIsLoading(false);
     }
   };
@@ -513,6 +516,9 @@ export default function Register() {
           </p>
         </div>
       </div>
+      
+      {/* Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 }

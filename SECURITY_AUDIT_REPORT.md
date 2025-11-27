@@ -5,6 +5,47 @@
 
 ---
 
+## 1. Información general del software
+
+**Nombre del software:** RefZone
+
+**Versión:** 1.0.0
+
+**Desarrollador(es):** Mauricio Ruiz (@Th3Mauryy)
+
+**Fecha de creación:** 2025
+
+**Lenguaje / Tecnologías:**
+- **Backend:** Node.js 22.x, Express.js 4.18.2, MongoDB con Mongoose 7.0.3
+- **Frontend:** React 19.1.0, Vite 6.3.5, Tailwind CSS 3.4.17
+- **Mapas:** Leaflet con OpenStreetMap (API Nominatim para geocodificación inversa)
+- **Seguridad:** express-rate-limit, helmet, xss-clean, CSRF tokens, bcryptjs
+- **Generación PDF:** PDFKit
+- **Autenticación:** JWT (jsonwebtoken)
+
+**Plataforma de ejecución:** 
+- Vercel (Serverless Functions con @vercel/node)
+- Compatible con navegadores modernos (Chrome, Firefox, Edge, Safari)
+- Responsive (escritorio y móvil)
+
+**Descripción general:**
+
+RefZone es una plataforma web integral diseñada para la gestión y coordinación de partidos de fútbol entre organizadores y árbitros. El sistema permite a los organizadores crear y administrar partidos, gestionar ubicaciones de canchas mediante mapas interactivos, seleccionar árbitros y generar reportes mensuales en PDF. Los árbitros pueden postularse a partidos disponibles, gestionar sus asignaciones y recibir calificaciones por su desempeño. 
+
+La plataforma incluye características avanzadas como:
+- Validaciones en tiempo real para todos los formularios
+- Manejo preciso de zonas horarias (America/Mexico_City UTC-6)
+- Sistema de calificaciones de 1 a 5 estrellas con historial detallado
+- Geocodificación inversa automática para facilitar el registro de ubicaciones
+- Protección contra duplicación de equipos en el mismo día
+- Requisito de 2 horas de anticipación para crear partidos
+- Bloqueo automático de edición/eliminación de partidos iniciados
+- Notificaciones por correo electrónico para asignaciones
+- Historial completo de partidos con estadísticas
+- Generación de reportes PDF mensuales con métricas detalladas
+
+---
+
 ## ✅ SEGURIDAD ACTUAL - LO QUE ESTÁ BIEN
 
 ### 1. Autenticación JWT ✅

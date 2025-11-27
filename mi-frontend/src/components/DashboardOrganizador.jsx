@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { showSuccess, showError, showWarning, showInfo } from '../utils/toast';
 import logger from "../utils/logger";
 
 const initialGame = { name: "", date: "", time: "", location: "", ubicacionId: "" };
@@ -173,8 +176,10 @@ export default function DashboardOrganizador() {
         localStorage.removeItem("userImage");
         
         // Mostrar mensaje y redirigir
-        alert("Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
-        window.location.href = "/";
+        showError("Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 2000);
       } else {
         window.location.href = "/";
       }
@@ -236,9 +241,40 @@ export default function DashboardOrganizador() {
     // Esperar a que el DOM se actualice
     const timer = setTimeout(() => {
       const mapElement = document.getElementById('ubicacion-map');
-      if (!mapElement || mapRef.current) return;
+      if (!mapElement) return;
 
-      // Inicializar el mapa centrado en Colima, México
+      // Si el mapa ya existe, solo actualizar el marcador
+      if (mapRef.current) {
+        if (ubicacionModal.latitud && ubicacionModal.longitud) {
+          const lat = ubicacionModal.latitud;
+          const lng = ubicacionModal.longitud;
+          
+          // Mover el mapa a la nueva ubicación
+          mapRef.current.setView([lat, lng], 16);
+          
+          // Actualizar o crear marcador
+          if (markerRef.current) {
+            markerRef.current.setLatLng([lat, lng]);
+          } else {
+            const marker = window.L.marker([lat, lng], { draggable: true }).addTo(mapRef.current);
+            markerRef.current = marker;
+            
+            // Actualizar coordenadas cuando se arrastra el marcador
+            marker.on('dragend', function(e) {
+              const pos = e.target.getLatLng();
+              setUbicacionModal(prev => ({
+                ...prev,
+                latitud: pos.lat,
+                longitud: pos.lng,
+                marcadorColocado: false
+              }));
+            });
+          }
+        }
+        return;
+      }
+
+      // Inicializar el mapa centrado en Colima, México (primera vez)
       const map = window.L.map('ubicacion-map').setView([19.2433, -103.7250], 13);
       mapRef.current = map;
 
@@ -378,25 +414,25 @@ export default function DashboardOrganizador() {
     try {
       // Validación de nombre (campo requerido)
       if (!ubicacionModal.nombre.trim()) {
-        alert('❌ Por favor ingresa el nombre de la cancha');
+        showWarning('⚠️ Por favor ingresa el nombre de la cancha');
         return;
       }
       
       // Validación de dirección (CP-035)
       if (!ubicacionModal.direccion || ubicacionModal.direccion.trim().length < 10) {
-        alert('❌ Por favor ingresa una dirección completa (mínimo 10 caracteres)');
+        showWarning('⚠️ Por favor ingresa una dirección completa (mínimo 10 caracteres)');
         return;
       }
 
       // Validación de marcador en mapa OBLIGATORIO (CP-034, CP-035)
       if (!ubicacionModal.latitud || !ubicacionModal.longitud) {
-        alert('❌ Por favor haz clic en el mapa para marcar la ubicación exacta de la cancha');
+        showWarning('⚠️ Por favor haz clic en el mapa para marcar la ubicación exacta de la cancha');
         return;
       }
 
       // Validar que el usuario haya colocado el marcador después de escribir la dirección
       if (!ubicacionModal.marcadorColocado) {
-        alert('❌ Por favor haz clic en el PIN AZUL � del mapa para actualizar la ubicación antes de guardar');
+        showWarning('⚠️ Por favor haz clic en el PIN AZUL 📌 del mapa para actualizar la ubicación antes de guardar');
         return;
       }
 
@@ -407,7 +443,7 @@ export default function DashboardOrganizador() {
       );
 
       if (nombreExistente) {
-        alert(`❌ Ya existe una ubicación con el nombre "${ubicacionModal.nombre}". Por favor usa un nombre diferente.`);
+        showError(`❌ Ya existe una ubicación con el nombre "${ubicacionModal.nombre}". Por favor usa un nombre diferente.`);
         setUbicacionModal({ ...ubicacionModal, saving: false });
         return;
       }
@@ -439,7 +475,7 @@ export default function DashboardOrganizador() {
       
       if (!res.ok) {
         // Mostrar mensaje de error específico del servidor (CP-036)
-        alert(data.message || "❌ Error al guardar ubicación");
+        showError(data.message || "❌ Error al guardar ubicación");
         setUbicacionModal({ ...ubicacionModal, saving: false });
         return;
       }
@@ -448,10 +484,10 @@ export default function DashboardOrganizador() {
       await Promise.all([loadUbicaciones(), loadGames()]);
       
       setUbicacionModal({ open: false, nombre: '', direccion: '', latitud: null, longitud: null, googleMapsUrl: '', saving: false, editingId: null, marcadorColocado: false });
-      alert(isEditing ? '✅ Ubicación actualizada exitosamente' : '✅ Ubicación agregada exitosamente');
+      showSuccess(isEditing ? '✅ Ubicación actualizada exitosamente' : '✅ Ubicación agregada exitosamente');
     } catch (error) {
       logger.error("Error al guardar ubicación:", error);
-      alert('❌ Error al guardar la ubicación. Por favor intenta nuevamente.');
+      showError('❌ Error al guardar la ubicación. Por favor intenta nuevamente.');
       setUbicacionModal({ ...ubicacionModal, saving: false });
     }
   }
@@ -470,10 +506,10 @@ export default function DashboardOrganizador() {
       if (!res.ok) throw new Error("Error al eliminar ubicación");
 
       await loadUbicaciones();
-      alert('✅ Ubicación eliminada exitosamente');
+      showSuccess('✅ Ubicación eliminada exitosamente');
     } catch (error) {
       logger.error("Error al eliminar ubicación:", error);
-      alert('Error al eliminar la ubicación');
+      showError('❌ Error al eliminar la ubicación');
     }
   }
 
@@ -639,7 +675,7 @@ export default function DashboardOrganizador() {
     // Si hay errores, mostrarlos y no continuar
     if (Object.keys(errors).length > 0) {
       setGameErrors(errors);
-      alert('⚠️ Por favor completa todos los campos correctamente.');
+      showWarning('⚠️ Por favor completa todos los campos correctamente.');
       return;
     }
     
@@ -647,7 +683,7 @@ export default function DashboardOrganizador() {
       // Validar fecha
       const gameDateTime = new Date(`${currentGame.date}T${currentGame.time}`);
       if (gameDateTime < new Date()) {
-        alert('⚠️ No puedes crear o editar un partido con fecha pasada');
+        showWarning('⚠️ No puedes crear o editar un partido con fecha pasada');
         return;
       }
       
@@ -673,6 +709,13 @@ export default function DashboardOrganizador() {
       const result = await res.json();
       if (!res.ok) throw new Error(result?.message || "Error al guardar");
       
+      // Mostrar notificación de éxito
+      if (editingId) {
+        showSuccess('✅ Partido actualizado exitosamente');
+      } else {
+        showSuccess('✅ Partido creado exitosamente');
+      }
+      
       setModalOpen(false);
       setEditingId(null);
       setCurrentGame(initialGame);
@@ -681,7 +724,7 @@ export default function DashboardOrganizador() {
       // Recargar en paralelo
       await Promise.all([loadGames(), loadStats()]);
     } catch (err) {
-      alert(err.message || "Error al conectar con el servidor");
+      showError(err.message || "❌ Error al conectar con el servidor");
     }
   }
 
@@ -700,9 +743,9 @@ export default function DashboardOrganizador() {
       loadStats(); // Recargar stats en background
       
       // Mensaje de confirmación (CP-033)
-      alert('✅ Partido eliminado exitosamente');
+      showSuccess('✅ Partido eliminado exitosamente');
     } catch (err) {
-      alert(err.message || "❌ Error al eliminar el partido");
+      showError(err.message || "❌ Error al eliminar el partido");
       loadGames(); // Recargar si falló
     }
   }
@@ -718,7 +761,7 @@ export default function DashboardOrganizador() {
       const data = await res.json();
       setPostuladosModal({ open: true, postulados: data?.postulados || [], gameId });
     } catch {
-      alert("Error al cargar postulados");
+      showError("❌ Error al cargar postulados");
     }
   }
 
@@ -738,7 +781,7 @@ export default function DashboardOrganizador() {
       setPostuladosModal({ open: false, postulados: [], gameId: null });
       loadGames(); // Recargar en background
     } catch (err) {
-      alert(err.message || "Error al asignar");
+      showError(err.message || "❌ Error al asignar");
     }
   }
 
@@ -765,7 +808,7 @@ export default function DashboardOrganizador() {
     } catch (err) {
       console.error("Error al cargar historial:", err);
       setHistorialModal(prev => ({ ...prev, loading: false }));
-      alert("No se pudo cargar el historial del árbitro");
+      showError("❌ No se pudo cargar el historial del árbitro");
     }
   }
 
@@ -798,7 +841,7 @@ export default function DashboardOrganizador() {
       });
     } catch (error) {
       logger.error("Error al cargar postulados para sustitución:", error);
-      alert("Error al cargar la lista de árbitros disponibles");
+      showError("❌ Error al cargar la lista de árbitros disponibles");
     }
   }
 
@@ -814,12 +857,12 @@ export default function DashboardOrganizador() {
     
     // Validaciones
     if (!nuevoArbitroId) {
-      alert("Por favor, selecciona un árbitro para la sustitución");
+      showWarning("⚠️ Por favor, selecciona un árbitro para la sustitución");
       return;
     }
     
     if (!razon || razon.trim().length < 10) {
-      alert("La razón debe tener al menos 10 caracteres");
+      showWarning("⚠️ La razón debe tener al menos 10 caracteres");
       return;
     }
     
@@ -858,11 +901,11 @@ export default function DashboardOrganizador() {
       await loadGames();
       
       // Mostrar mensaje de éxito al final
-      alert(`✅ Sustitución exitosa!\n\nÁrbitro anterior: ${data.arbitroAnterior}\nNuevo árbitro: ${data.nuevoArbitro}\n\nSe han enviado las notificaciones por email.`);
+      showSuccess(`✅ Sustitución exitosa!\n\nÁrbitro anterior: ${data.arbitroAnterior}\nNuevo árbitro: ${data.nuevoArbitro}\n\nSe han enviado las notificaciones por email.`);
       
     } catch (err) {
       logger.error("Error al sustituir:", err);
-      alert(err.message || "Error al conectar con el servidor");
+      showError(err.message || "❌ Error al conectar con el servidor");
       setSustitucionModal(prev => ({ ...prev, loading: false }));
     }
   }
@@ -879,7 +922,7 @@ export default function DashboardOrganizador() {
     
     // Validar razón
     if (!razon || razon.trim().length < 10) {
-      alert("La razón debe tener al menos 10 caracteres");
+      showWarning("⚠️ La razón debe tener al menos 10 caracteres");
       return;
     }
     
@@ -926,11 +969,11 @@ export default function DashboardOrganizador() {
       await loadGames();
       
       // Mostrar mensaje de éxito al final
-      alert(`✅ Desasignación exitosa!\n\nÁrbitro removido: ${data.arbitroRemovido}\n\nEl partido está ahora abierto para nuevas postulaciones.\nSe ha enviado la notificación por email.`);
+      showSuccess(`✅ Desasignación exitosa!\n\nÁrbitro removido: ${data.arbitroRemovido}\n\nEl partido está ahora abierto para nuevas postulaciones.\nSe ha enviado la notificación por email.`);
       
     } catch (err) {
       logger.error("Error al desasignar:", err);
-      alert(`Error al desasignar árbitro:\n${err.message}`);
+      showError(`❌ Error al desasignar árbitro:\n${err.message}`);
       setSustitucionModal(prev => ({ ...prev, loading: false }));
     }
   }
@@ -1029,7 +1072,7 @@ export default function DashboardOrganizador() {
     const { partido, arbitro, estrellas, comentario } = calificacionModal;
     
     if (estrellas === 0) {
-      alert('⚠️ Por favor selecciona una calificación de 1 a 5 estrellas');
+      showWarning('⚠️ Por favor selecciona una calificación de 1 a 5 estrellas');
       return;
     }
 
@@ -1056,7 +1099,7 @@ export default function DashboardOrganizador() {
         throw new Error(data.message || 'Error al calificar árbitro');
       }
 
-      alert(`✅ Calificación registrada exitosamente!\n\nÁrbitro: ${arbitro.nombre}\nCalificación: ${estrellas} ⭐\nPromedio actual: ${data.arbitro.calificacionPromedio.toFixed(2)}/5.00`);
+      showSuccess(`✅ Calificación registrada exitosamente!\n\nÁrbitro: ${arbitro.nombre}\nCalificación: ${estrellas} ⭐\nPromedio actual: ${data.arbitro.calificacionPromedio.toFixed(2)}/5.00`);
 
       // Cerrar modal
       setCalificacionModal({
@@ -1081,7 +1124,7 @@ export default function DashboardOrganizador() {
 
     } catch (error) {
       logger.error('Error al calificar:', error);
-      alert(`❌ Error al calificar árbitro:\n${error.message}`);
+      showError(`❌ Error al calificar árbitro:\n${error.message}`);
       setCalificacionModal(prev => ({ ...prev, loading: false }));
     }
   }
@@ -1297,7 +1340,7 @@ export default function DashboardOrganizador() {
       
       // Obtener información de la cancha desde user.canchaAsignada
       if (!user?.canchaAsignada) {
-        alert('No tienes una cancha asignada. No se puede generar el reporte.');
+        showError('❌ No tienes una cancha asignada. No se puede generar el reporte.');
         setReporteModal(prevState => ({ ...prevState, cargando: false }));
         return;
       }
@@ -1305,7 +1348,7 @@ export default function DashboardOrganizador() {
       // Si no hay partidos, mostrar un mensaje y cancelar la generación del PDF
       if (partidosFiltrados.length === 0) {
         logger.warn('No hay partidos registrados para el período seleccionado.');
-        alert('No hay partidos registrados para el período seleccionado.');
+        showInfo('ℹ️ No hay partidos registrados para el período seleccionado.');
         setReporteModal(prevState => ({ ...prevState, cargando: false }));
         return;
       }
@@ -1389,7 +1432,7 @@ export default function DashboardOrganizador() {
       // Verificar que jsPDF esté disponible (ya configurado en index.html como window.jsPDF)
       if (!window.jsPDF) {
         logger.error('Error: jsPDF no está disponible. Asegúrate de que index.html incluye el script de jsPDF.');
-        alert('Error: No se encontró la biblioteca para generar PDFs.');
+        showError('❌ Error: No se encontró la biblioteca para generar PDFs.');
         setReporteModal(prevState => ({ ...prevState, cargando: false }));
         return;
       }
@@ -1770,7 +1813,7 @@ export default function DashboardOrganizador() {
       logger.log('Reporte PDF generado correctamente');
     } catch (error) {
       logger.error('Error al generar reporte:', error);
-      alert(`Error al generar el reporte: ${error.message || 'Error desconocido'}. Inténtalo de nuevo.`);
+      showError(`❌ Error al generar el reporte: ${error.message || 'Error desconocido'}. Inténtalo de nuevo.`);
       setReporteModal(prevState => ({ ...prevState, cargando: false }));
     }
   }
@@ -3014,58 +3057,99 @@ export default function DashboardOrganizador() {
                         type="text"
                         id="ubicacion-direccion"
                         className="form-input pr-10"
-                        placeholder="Haz clic en el mapa y luego en el botón 📍 para obtener la dirección"
+                        placeholder="Escribe calle, colonia o ciudad, y presiona 📌 para buscar"
                         value={ubicacionModal.direccion}
                         onChange={(e) => setUbicacionModal({ 
                           ...ubicacionModal, 
-                          direccion: e.target.value
-                          // No resetear marcadorColocado aquí, se resetea solo al mover el pin
+                          direccion: e.target.value,
+                          marcadorColocado: false // Resetear cuando el usuario edita manualmente
                         })}
                         disabled={ubicacionModal.saving}
-                        readOnly  // Hacer el campo de solo lectura para que solo se actualice con el botón
                       />
                       <button
                         type="button"
                         onClick={async () => {
-                          // Verificar que haya un pin colocado en el mapa
-                          if (!ubicacionModal.latitud || !ubicacionModal.longitud) {
-                            alert('⚠️ Primero coloca el PIN en el mapa haciendo clic en la ubicación');
+                          // MODO 1: Si NO hay pin pero SÍ hay dirección escrita → GEOCODIFICACIÓN DIRECTA (buscar dirección)
+                          if (ubicacionModal.direccion.trim() && (!ubicacionModal.latitud || !ubicacionModal.longitud)) {
+                            const direccionOriginal = ubicacionModal.direccion.trim();
+                            
+                            try {
+                              // Buscar dirección en Nominatim (geocodificación directa)
+                              const searchQuery = encodeURIComponent(direccionOriginal);
+                              const response = await fetch(
+                                `https://nominatim.openstreetmap.org/search?format=json&q=${searchQuery}&limit=3&countrycodes=mx`
+                              );
+                              const results = await response.json();
+                              
+                              if (results && results.length > 0) {
+                                const location = results[0];
+                                const lat = parseFloat(location.lat);
+                                const lon = parseFloat(location.lon);
+                                
+                                // PRESERVAR la dirección que escribió el usuario (con número)
+                                setUbicacionModal(prev => ({
+                                  ...prev,
+                                  latitud: lat,
+                                  longitud: lon,
+                                  direccion: direccionOriginal, // ✅ MANTENER lo que escribió el usuario
+                                  marcadorColocado: false // ⚠️ No confirmar aún, que ajuste manualmente
+                                }));
+                                
+                                // Mensaje diferente según el tipo de resultado
+                                if (location.type === 'house' || location.type === 'building') {
+                                  showSuccess('✅ Dirección exacta encontrada!\n\nMarcador colocado en el mapa.');
+                                } else {
+                                  showWarning('⚠️ Se encontró la zona general (calle/colonia).\n\nAjusta el PIN manualmente para la ubicación exacta y luego presiona 📌 de nuevo para confirmar.');
+                                }
+                              } else {
+                                showError('❌ No se encontró la dirección.\n\nIntenta con:\n• Solo la calle principal\n• El nombre de la colonia\n• O coloca el PIN manualmente en el mapa');
+                              }
+                            } catch (error) {
+                              logger.error('Error buscando dirección:', error);
+                              showError('❌ Error al buscar la dirección.\n\nPor favor, coloca el PIN manualmente en el mapa.');
+                            }
                             return;
                           }
                           
-                          try {
-                            // Geocodificación INVERSA: obtener dirección desde coordenadas
-                            const response = await fetch(
-                              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${ubicacionModal.latitud}&lon=${ubicacionModal.longitud}&zoom=18&addressdetails=1`
-                            );
-                            const data = await response.json();
-                            
-                            if (data && data.display_name) {
-                              setUbicacionModal(prev => ({
-                                ...prev,
-                                direccion: data.display_name,
-                                marcadorColocado: true // ✅ Confirmar que el marcador está colocado
-                              }));
+                          // MODO 2: Si hay pin colocado → GEOCODIFICACIÓN INVERSA (obtener dirección desde coordenadas)
+                          if (ubicacionModal.latitud && ubicacionModal.longitud) {
+                            try {
+                              const response = await fetch(
+                                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${ubicacionModal.latitud}&lon=${ubicacionModal.longitud}&zoom=18&addressdetails=1`
+                              );
+                              const data = await response.json();
                               
-                              alert('✅ Dirección actualizada desde el mapa');
-                            } else {
-                              alert('⚠️ No se pudo obtener la dirección. Intenta con otra ubicación.');
+                              if (data && data.display_name) {
+                                setUbicacionModal(prev => ({
+                                  ...prev,
+                                  direccion: data.display_name,
+                                  marcadorColocado: true
+                                }));
+                                
+                                showSuccess('✅ Dirección actualizada desde el mapa');
+                              } else {
+                                showWarning('⚠️ No se pudo obtener la dirección. Intenta con otra ubicación.');
+                              }
+                            } catch (error) {
+                              logger.error('Error obteniendo dirección:', error);
+                              showError('❌ Error al obtener la dirección desde el mapa');
                             }
-                          } catch (error) {
-                            logger.error('Error obteniendo dirección:', error);
-                            alert('❌ Error al obtener la dirección desde el mapa');
+                            return;
                           }
+                          
+                          // MODO 3: No hay ni pin ni dirección
+                          showWarning('⚠️ Escribe una dirección para buscar, o coloca el PIN manualmente en el mapa');
                         }}
                         className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-primary-600 hover:text-primary-700 transition-colors disabled:opacity-50"
-                        title="📌 Obtener dirección desde el PIN del mapa"
-                        disabled={ubicacionModal.saving || !ubicacionModal.latitud || !ubicacionModal.longitud}
+                        title="📌 Buscar dirección O obtener dirección desde el PIN del mapa"
+                        disabled={ubicacionModal.saving}
                       >
                         <span className="text-xl">📌</span>
                       </button>
                     </div>
-                    {ubicacionModal.latitud && ubicacionModal.longitud && (
-                      <div className="mt-2">
-                        {!ubicacionModal.marcadorColocado ? (
+                    <div className="mt-2">
+                      {ubicacionModal.latitud && ubicacionModal.longitud ? (
+                        !ubicacionModal.marcadorColocado ? (
                           <p className="text-xs text-orange-600 flex items-center">
                             <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
@@ -3079,9 +3163,16 @@ export default function DashboardOrganizador() {
                             </svg>
                             Ubicación confirmada - Puedes guardar
                           </p>
-                        )}
-                      </div>
-                    )}
+                        )
+                      ) : (
+                        <p className="text-xs text-blue-600 flex items-center">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                          </svg>
+                          Escribe una dirección y presiona 📌, o coloca el PIN en el mapa
+                        </p>
+                      )}
+                    </div>
                   </div>
                   {ubicacionModal.latitud && ubicacionModal.longitud && (
                     <div className="bg-gray-50 p-3 rounded-lg">
@@ -3437,6 +3528,9 @@ export default function DashboardOrganizador() {
           </div>
         </div>
       )}
+      
+      {/* Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 }

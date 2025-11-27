@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { showSuccess, showError } from '../utils/toast';
 import logger from "../utils/logger";
 
 export default function Dashboard() {
@@ -163,8 +166,8 @@ export default function Dashboard() {
           localStorage.removeItem("userRole");
           
           // Mostrar mensaje y redirigir
-          alert("Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
-          window.location.href = "/";
+          showError("Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
+          setTimeout(() => { window.location.href = "/"; }, 2000);
           return;
         }
       } catch (error) {
@@ -322,14 +325,14 @@ export default function Dashboard() {
       const result = await res.json();
       
       if (res.ok) {
-        alert(result.message);
+        showSuccess(result.message || "✅ Te has postulado exitosamente al partido");
         setApplyModal({ open: false, gameId: null });
         await loadGames();
       } else {
-        alert(result.message || "Error al postularse");
+        showError(result.message || "Error al postularse");
       }
     } catch {
-      alert("Ocurrió un error. Intenta nuevamente.");
+      showError("Ocurrió un error. Intenta nuevamente.");
     } finally {
       // Quitar de la lista de procesamiento
       setApplyingGames(prev => {
@@ -350,11 +353,11 @@ export default function Dashboard() {
         body: JSON.stringify({ gameId: cancelModal.gameId, userId: user.userId }),
       });
       const data = await res.json();
-      alert(data.message);
+      showSuccess(data.message || "✅ Postulación cancelada exitosamente");
       setCancelModal({ open: false, gameId: null });
       loadGames();
     } catch {
-      alert("Hubo un problema al cancelar la postulación.");
+      showError("Hubo un problema al cancelar la postulación.");
     }
   }
 
@@ -840,6 +843,9 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      
+      {/* Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 }

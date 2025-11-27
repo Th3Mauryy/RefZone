@@ -1,4 +1,7 @@
 import React, { useState } from "react";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { showError } from '../utils/toast';
 import logger from "../utils/logger";
 
 export default function Login() {
@@ -98,12 +101,12 @@ export default function Login() {
         // Navegación directa con replace
         window.location.href = data.redirect; // Forzar navegación completa
       } else {
-        alert(data.message || "Error al iniciar sesión");
+        showError(data.message || "❌ Error al iniciar sesión");
         setIsLoading(false);
       }
     } catch (error) {
       logger.error("Error al iniciar sesión:", error);
-      alert("Error de conexión. Intenta de nuevo.");
+      showError("❌ Error de conexión. Intenta de nuevo.");
       setIsLoading(false);
     }
   };
@@ -245,6 +248,9 @@ export default function Login() {
           </p>
         </div>
       </div>
+      
+      {/* Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 }
