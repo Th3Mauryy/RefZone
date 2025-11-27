@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { showSuccess, showError, showWarning, showInfo } from '../utils/toast';
+import ConfirmModal from './ConfirmModal';
 import logger from "../utils/logger";
 
 const initialGame = { name: "", date: "", time: "", location: "", ubicacionId: "" };
@@ -58,6 +59,15 @@ export default function DashboardOrganizador() {
   });
   const mapRef = useRef(null); // Referencia para el mapa de Leaflet
   const markerRef = useRef(null); // Referencia para el marcador
+
+  // Estado para modal de confirmación personalizado
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    type: 'danger'
+  });
 
   const [stats, setStats] = useState({ total: 0, upcoming: 0, needsReferee: 0 });
   const [user, setUser] = useState(null);
@@ -494,23 +504,31 @@ export default function DashboardOrganizador() {
 
   // Eliminar ubicación
   async function deleteUbicacion(ubicacionId) {
-    if (!confirm('¿Estás seguro de eliminar esta ubicación?')) return;
+    setConfirmModal({
+      isOpen: true,
+      title: '🗑️ Eliminar Ubicación',
+      message: '¿Estás seguro de eliminar esta ubicación?\n\nEsta acción no se puede deshacer y afectará todos los partidos asociados.',
+      type: 'danger',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch(`/api/ubicaciones/${ubicacionId}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` }
+          });
 
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/ubicaciones/${ubicacionId}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+          if (!res.ok) throw new Error("Error al eliminar ubicación");
 
-      if (!res.ok) throw new Error("Error al eliminar ubicación");
-
-      await loadUbicaciones();
-      showSuccess('✅ Ubicación eliminada exitosamente');
-    } catch (error) {
-      logger.error("Error al eliminar ubicación:", error);
-      showError('❌ Error al eliminar la ubicación');
-    }
+          await loadUbicaciones();
+          showSuccess('✅ Ubicación eliminada exitosamente');
+        } catch (error) {
+          logger.error("Error al eliminar ubicación:", error);
+          showError('❌ Error al eliminar la ubicación');
+        }
+      }
+    });
   }
 
   async function loadStats() {
@@ -729,25 +747,29 @@ export default function DashboardOrganizador() {
   }
 
   async function handleDelete(gameId) {
-    if (!window.confirm("¿Eliminar este partido?")) return;
-    try {
-      const res = await fetch(`/api/games/${gameId}`, { 
-        method: "DELETE", 
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
-      });
-      
-      if (!res.ok) throw new Error("Error al eliminar");
-      
-      // Actualización optimista de UI
-      setGames(prev => prev.filter(g => g._id !== gameId));
-      loadStats(); // Recargar stats en background
-      
-      // Mensaje de confirmación (CP-033)
-      showSuccess('✅ Partido eliminado exitosamente');
-    } catch (err) {
-      showError(err.message || "❌ Error al eliminar el partido");
-      loadGames(); // Recargar si falló
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: '⚽ Eliminar Partido',
+      message: '¿Estás seguro de eliminar este partido?\n\nEsta acción no se puede deshacer y se notificará a los árbitros postulados.',
+      type: 'danger',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        
+        try {
+          const res = await fetch(`/api/games/${gameId}`, { 
+            method: "DELETE", 
+            headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+          });
+          
+          if (!res.ok) throw new Error("Error al eliminar");
+          
+          await Promise.all([loadGames(), loadStats()]);
+          showSuccess('✅ Partido eliminado exitosamente');
+        } catch (err) {
+          showError(err.message || "❌ Error al eliminar el partido");
+        }
+      }
+    });
   }
 
   async function openPostulados(gameId) {
@@ -926,17 +948,16 @@ export default function DashboardOrganizador() {
       return;
     }
     
-    const confirmacion = confirm(
-      "¿Estás seguro de desasignar al árbitro?\n\n" +
-      "El partido se reabrirá para que otros árbitros puedan postularse.\n" +
-      "Se enviará un email al árbitro notificándole la desasignación."
-    );
-    
-    if (!confirmacion) return;
-    
-    setSustitucionModal(prev => ({ ...prev, loading: true }));
-    
-    try {
+    setConfirmModal({
+      isOpen: true,
+      title: '⚠️ Desasignar Árbitro',
+      message: '¿Estás seguro de desasignar al árbitro?\n\n• El partido se reabrirá para nuevas postulaciones\n• Se enviará un email al árbitro notificándole',
+      type: 'warning',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setSustitucionModal(prev => ({ ...prev, loading: true }));
+        
+        try {
       const res = await fetch(`/api/games/${gameId}/unassign`, {
         method: "POST",
         headers: { 
@@ -966,16 +987,18 @@ export default function DashboardOrganizador() {
       });
       
       // Luego recargar partidos
-      await loadGames();
-      
-      // Mostrar mensaje de éxito al final
-      showSuccess(`✅ Desasignación exitosa!\n\nÁrbitro removido: ${data.arbitroRemovido}\n\nEl partido está ahora abierto para nuevas postulaciones.\nSe ha enviado la notificación por email.`);
-      
-    } catch (err) {
-      logger.error("Error al desasignar:", err);
-      showError(`❌ Error al desasignar árbitro:\n${err.message}`);
-      setSustitucionModal(prev => ({ ...prev, loading: false }));
-    }
+          await loadGames();
+          
+          // Mostrar mensaje de éxito al final
+          showSuccess(`✅ Desasignación exitosa!\n\nÁrbitro removido: ${data.arbitroRemovido}\n\nEl partido está ahora abierto para nuevas postulaciones.\nSe ha enviado la notificación por email.`);
+          
+        } catch (err) {
+          logger.error("Error al desasignar:", err);
+          showError(`❌ Error al desasignar árbitro:\n${err.message}`);
+          setSustitucionModal(prev => ({ ...prev, loading: false }));
+        }
+      }
+    });
   }
 
   function formatDate(input) {
@@ -3531,6 +3554,18 @@ export default function DashboardOrganizador() {
       
       {/* Toast Notifications */}
       <ToastContainer />
+      
+      {/* Modal de Confirmación Personalizado */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        type={confirmModal.type}
+        confirmText="Sí, Continuar"
+        cancelText="Cancelar"
+      />
     </div>
   );
 }
