@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { showSuccess, showError, showWarning } from '../utils/toast';
 
 export default function EditProfile() {
   const [form, setForm] = useState({
@@ -235,13 +238,13 @@ export default function EditProfile() {
       // Agregar contraseñas si se están cambiando (CP-013)
       if (form.currentPassword || form.newPassword) {
         if (!form.currentPassword || !form.newPassword) {
-          alert("Para cambiar la contraseña, debes proporcionar tanto la contraseña actual como la nueva");
+          showWarning("⚠️ Para cambiar la contraseña, debes proporcionar tanto la contraseña actual como la nueva");
           setIsSaving(false);
           return;
         }
         
         if (form.newPassword !== form.confirmPassword) {
-          alert("Las contraseñas nuevas no coinciden");
+          showWarning("⚠️ Las contraseñas nuevas no coinciden");
           setIsSaving(false);
           return;
         }
@@ -267,14 +270,14 @@ export default function EditProfile() {
       const result = await res.json();
       
       if (res.ok) {
-        alert("¡Perfil actualizado exitosamente!");
+        showSuccess("✅ ¡Perfil actualizado exitosamente!");
         navigate("/dashboard");
       } else {
-        alert(result.message || "Error al actualizar el perfil");
+        showError(result.message || "❌ Error al actualizar el perfil");
       }
     } catch (error) {
       console.error("Error:", error);
-      alert("Error al conectar con el servidor");
+      showError("❌ Error al conectar con el servidor");
     } finally {
       setIsSaving(false);
     }
@@ -683,6 +686,9 @@ export default function EditProfile() {
           </div>
         </div>
       </div>
+      
+      {/* Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 }

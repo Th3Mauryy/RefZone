@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { showError } from '../utils/toast';
 
 export default function CompleteProfile() {
   const [form, setForm] = useState({
@@ -83,11 +86,11 @@ export default function CompleteProfile() {
           navigate(result.redirect || "/dashboard");
         }, 1500);
       } else {
-        alert(result.message || "Error al guardar el perfil");
+        showError(result.message || "❌ Error al guardar el perfil");
         setIsSaving(false);
       }
     } catch {
-      alert("Error al conectar con el servidor");
+      showError("❌ Error al conectar con el servidor");
       setIsSaving(false);
     }
   };
@@ -341,6 +344,9 @@ export default function CompleteProfile() {
           </div>
         </div>
       </div>
+      
+      {/* Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 }

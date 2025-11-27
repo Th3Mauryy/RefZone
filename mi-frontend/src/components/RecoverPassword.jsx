@@ -16,10 +16,10 @@ export default function RecoverPassword() {
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
-      alert(data.message);
+      showSuccess(data.message || "✅ Correo de recuperación enviado. Revisa tu bandeja de entrada.");
       if (res.ok) setSent(true);
     } catch {
-      alert("Error al enviar el correo de recuperación");
+      showError("❌ Error al enviar el correo de recuperación");
     } finally {
       setIsLoading(false);
     }
@@ -164,6 +164,9 @@ export default function RecoverPassword() {
           </p>
         </div>
       </div>
+      
+      {/* Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 }
