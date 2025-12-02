@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { showSuccess, showError } from "../utils/toast";
 
 export default function RecoverPassword() {
   const [email, setEmail] = useState("");
@@ -164,9 +165,6 @@ export default function RecoverPassword() {
           </p>
         </div>
       </div>
-      
-      {/* Toast Notifications */}
-      <ToastContainer />
     </div>
   );
 }

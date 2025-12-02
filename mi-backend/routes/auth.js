@@ -189,8 +189,10 @@ router.get('/check-session', verifyToken, async (req, res) => {
     console.log('Verificando sesión para usuario:', req.user.id);
     
     // Usar .lean() para obtener un objeto JavaScript puro y evitar problemas
+    // Si es organizador, incluir información de la cancha asignada
     const user = await User.findById(req.user.id)
-      .select('_id nombre email role imagenPerfil edad contacto experiencia calificacionPromedio totalCalificaciones')
+      .select('_id nombre email role imagenPerfil edad contacto experiencia calificacionPromedio totalCalificaciones canchaAsignada')
+      .populate('canchaAsignada', 'nombre direccion telefono email logo descripcion')
       .lean()
       .exec();
     
@@ -204,6 +206,9 @@ router.get('/check-session', verifyToken, async (req, res) => {
     
     // Si llegamos aquí, la sesión es válida
     console.log('Sesión válida para:', user.nombre || user.email);
+    if (user.canchaAsignada) {
+      console.log('Cancha asignada:', user.canchaAsignada.nombre);
+    }
     
     // Guardar en localStorage los datos básicos del usuario
     // Esto se hace enviando instrucciones al cliente
@@ -219,6 +224,7 @@ router.get('/check-session', verifyToken, async (req, res) => {
       experiencia: user.experiencia,
       calificacionPromedio: user.calificacionPromedio || 0,
       totalCalificaciones: user.totalCalificaciones || 0,
+      canchaAsignada: user.canchaAsignada || null,
       // Incluir instrucciones para el cliente
       storeLocally: true,
       storeFields: ['userId', 'nombre', 'email', 'role']
