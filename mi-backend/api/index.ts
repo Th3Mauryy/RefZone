@@ -12,24 +12,6 @@ import helmet from 'helmet';
 import cloudinaryModule from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
-// Importar rutas
-import authRoutes from '../src/routes/auth';
-import gameRoutes from '../src/routes/gameRoutes';
-import reporteRoutes from '../src/routes/reporteRoutes';
-import canchaRoutes from '../src/routes/canchaRoutes';
-import ubicacionRoutes from '../src/routes/ubicacionRoutes';
-
-// Importar middlewares de seguridad
-import { 
-    loginLimiter, 
-    registerLimiter, 
-    passwordRecoveryLimiter,
-    apiLimiter,
-    createGameLimiter,
-    applyGameLimiter 
-} from '../src/middleware/rateLimiter';
-import { sanitizeBodyMiddleware } from '../src/middleware/sanitizer';
-
 // Cloudinary setup
 const cloudinary = cloudinaryModule.v2;
 
@@ -88,25 +70,6 @@ app.use(helmet({
     xssFilter: true
 }));
 
-// Sanitización general de inputs
-app.use(sanitizeBodyMiddleware);
-
-// Rate limiting general para API
-app.use('/api/', apiLimiter);
-
-// Rate limiters específicos para rutas críticas
-app.use('/api/usuarios/login', loginLimiter);
-app.use('/api/auth/login', loginLimiter);
-app.use('/api/usuarios/registro', registerLimiter);
-app.use('/api/auth/register', registerLimiter);
-app.use('/api/usuarios/recuperar', passwordRecoveryLimiter);
-app.use('/api/auth/recuperar', passwordRecoveryLimiter);
-app.use('/api/games', (req: Request, res: Response, next: NextFunction) => {
-    if (req.method === 'POST') return createGameLimiter(req, res, next);
-    next();
-});
-app.use('/api/games/:id/apply', applyGameLimiter);
-
 // Variable para controlar conexión a MongoDB
 let isConnected = false;
 
@@ -147,28 +110,111 @@ app.use(async (_req: Request, _res: Response, next: NextFunction) => {
         await connectToDatabase();
         next();
     } catch (error) {
+        console.error('Error connecting to database:', error);
         next(error);
     }
 });
 
-// Rutas con prefijo /api
-app.use('/api/auth', authRoutes);
-app.use('/api/usuarios', authRoutes);
-app.use('/api/games', gameRoutes);
-app.use('/api/canchas', canchaRoutes);
-app.use('/api/ubicaciones', ubicacionRoutes);
-app.use('/api/reportes', reporteRoutes);
+// Importar rutas de forma dinámica para mejor manejo de errores
+let authRoutes: any, gameRoutes: any, reporteRoutes: any, canchaRoutes: any, ubicacionRoutes: any;
+let sanitizeBodyMiddleware: any, apiLimiter: any, loginLimiter: any, registerLimiter: any, passwordRecoveryLimiter: any, createGameLimiter: any, applyGameLimiter: any;
 
-// Rutas sin prefijo /api para compatibilidad
-app.use('/usuarios', authRoutes);
-app.use('/games', gameRoutes);
-app.use('/canchas', canchaRoutes);
-app.use('/ubicaciones', ubicacionRoutes);
-app.use('/reportes', reporteRoutes);
+try {
+    // Importar middlewares de seguridad
+    const rateLimiter = require('../src/middleware/rateLimiter');
+    const sanitizer = require('../src/middleware/sanitizer');
+    
+    loginLimiter = rateLimiter.loginLimiter;
+    registerLimiter = rateLimiter.registerLimiter;
+    passwordRecoveryLimiter = rateLimiter.passwordRecoveryLimiter;
+    apiLimiter = rateLimiter.apiLimiter;
+    createGameLimiter = rateLimiter.createGameLimiter;
+    applyGameLimiter = rateLimiter.applyGameLimiter;
+    sanitizeBodyMiddleware = sanitizer.sanitizeBodyMiddleware;
+    
+    // Importar rutas
+    authRoutes = require('../src/routes/auth').default;
+    gameRoutes = require('../src/routes/games').default;
+    reporteRoutes = require('../src/routes/reporteRoutes').default;
+    canchaRoutes = require('../src/routes/canchaRoutes').default;
+    ubicacionRoutes = require('../src/routes/ubicacionRoutes').default;
+    
+    console.log('✅ Rutas y middlewares cargados correctamente');
+} catch (error) {
+    console.error('❌ Error cargando rutas/middlewares:', error);
+}
+
+// Aplicar middlewares de seguridad si están disponibles
+if (sanitizeBodyMiddleware) {
+    app.use(sanitizeBodyMiddleware);
+}
+
+if (apiLimiter) {
+    app.use('/api/', apiLimiter);
+}
+
+// Rate limiters específicos para rutas críticas
+if (loginLimiter) {
+    app.use('/api/usuarios/login', loginLimiter);
+    app.use('/api/auth/login', loginLimiter);
+}
+if (registerLimiter) {
+    app.use('/api/usuarios/registro', registerLimiter);
+    app.use('/api/auth/register', registerLimiter);
+}
+if (passwordRecoveryLimiter) {
+    app.use('/api/usuarios/recuperar', passwordRecoveryLimiter);
+    app.use('/api/auth/recuperar', passwordRecoveryLimiter);
+}
+if (createGameLimiter) {
+    app.use('/api/games', (req: Request, res: Response, next: NextFunction) => {
+        if (req.method === 'POST') return createGameLimiter(req, res, next);
+        next();
+    });
+}
+if (applyGameLimiter) {
+    app.use('/api/games/:id/apply', applyGameLimiter);
+}
+
+// Rutas con prefijo /api
+if (authRoutes) {
+    app.use('/api/auth', authRoutes);
+    app.use('/api/usuarios', authRoutes);
+    app.use('/usuarios', authRoutes);
+}
+if (gameRoutes) {
+    app.use('/api/games', gameRoutes);
+    app.use('/games', gameRoutes);
+}
+if (canchaRoutes) {
+    app.use('/api/canchas', canchaRoutes);
+    app.use('/canchas', canchaRoutes);
+}
+if (ubicacionRoutes) {
+    app.use('/api/ubicaciones', ubicacionRoutes);
+    app.use('/ubicaciones', ubicacionRoutes);
+}
+if (reporteRoutes) {
+    app.use('/api/reportes', reporteRoutes);
+    app.use('/reportes', reporteRoutes);
+}
 
 // Ruta de health check
 app.get('/api/health', (_req: Request, res: Response) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        routesLoaded: !!authRoutes
+    });
+});
+
+// Error handler global
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('Error en servidor:', err);
+    res.status(500).json({ 
+        message: 'Error interno del servidor',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
 });
 
 // Exportar configuración de Cloudinary
