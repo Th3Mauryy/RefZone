@@ -18,7 +18,8 @@ const HistorialPartido = require('./models/HistorialPartido');
 const migrarEstadioACancha = require('./config/migrateEstadioToCancha');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const csrf = require('csurf');
+// csurf eliminado - deprecado y con vulnerabilidades conocidas
+// CSRF protection implementada via helmet y tokens JWT
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const cron = require('node-cron');
