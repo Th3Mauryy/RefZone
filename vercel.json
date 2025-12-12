@@ -9,14 +9,14 @@
       }
     },
     {
-      "src": "mi-backend/api/index.js",
+      "src": "mi-backend/api/index.ts",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "mi-backend/api/index.js"
+      "dest": "mi-backend/api/index.ts"
     },
     {
       "src": "/assets/(.*)",

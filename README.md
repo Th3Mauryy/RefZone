@@ -17,12 +17,13 @@
 
 ### Frontend
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 
 ### Backend
 ![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![Express.js](https://img.shields.io/badge/Express.js-404D59?style=for-the-badge)
 ![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white)
 ![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens)
@@ -112,17 +113,29 @@ PORT=5000
 
 ```
 RefZone/
-├── mi-frontend/          # Aplicación React
+├── mi-frontend/              # Aplicación React + TypeScript
 │   ├── src/
-│   │   ├── components/   # Componentes reutilizables
-│   │   ├── services/     # Servicios API
-│   │   └── styles/       # Estilos CSS
+│   │   ├── components/       # Componentes React
+│   │   │   ├── dashboardComponents/    # Componentes del Dashboard
+│   │   │   ├── editProfileComponents/  # Componentes de perfil
+│   │   │   └── organizerComponents/    # Componentes del organizador
+│   │   ├── hooks/            # Custom hooks (useDashboard, etc.)
+│   │   ├── services/         # Servicios API
+│   │   ├── types/            # Tipos TypeScript
+│   │   ├── utils/            # Utilidades (toast, logger)
+│   │   └── styles/           # Estilos CSS
 │   └── package.json
-├── mi-backend/           # API Node.js/Express
-│   ├── models/           # Modelos Mongoose
-│   ├── routes/           # Rutas de la API
-│   ├── middleware/       # Middleware personalizado
-│   ├── config/           # Configuraciones
+├── mi-backend/               # API Node.js/Express + TypeScript
+│   ├── src/
+│   │   ├── controllers/      # Controladores de rutas
+│   │   ├── services/         # Lógica de negocio
+│   │   ├── models/           # Modelos Mongoose
+│   │   ├── routes/           # Rutas de la API
+│   │   ├── middleware/       # Middleware personalizado
+│   │   ├── config/           # Configuraciones
+│   │   ├── types/            # Tipos TypeScript
+│   │   └── server.ts         # Entry point
+│   ├── api/                  # Entry point Vercel (serverless)
 │   └── package.json
 └── README.md
 ```
