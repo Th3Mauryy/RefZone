@@ -322,6 +322,8 @@ export async function calificarArbitro(
   await arbitro.save();
 
   partido.calificado = true;
+  partido.calificacionArbitro = estrellas;
+  partido.comentarioCalificacion = comentario || '';
   await partido.save();
 
   return {

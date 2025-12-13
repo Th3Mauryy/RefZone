@@ -598,8 +598,21 @@ export const HistorialModalComponent: React.FC<HistorialModalProps> = ({ modal, 
             <div className="space-y-3">
               {modal.historial.map((partido) => (
                 <div key={partido._id} className="p-3 bg-gray-50 rounded-lg border">
-                  <p className="font-medium">{partido.nombre}</p>
-                  <p className="text-sm text-gray-600">{partido.fecha} - {partido.hora}</p>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium">{partido.nombre}</p>
+                      <p className="text-sm text-gray-600">{partido.fecha} - {partido.hora}</p>
+                    </div>
+                    {partido.calificacion !== undefined && partido.calificacion > 0 && (
+                      <div className="flex items-center bg-yellow-50 px-2 py-1 rounded-lg">
+                        <span className="text-yellow-500 mr-1">⭐</span>
+                        <span className="font-semibold text-yellow-700">{partido.calificacion}/5</span>
+                      </div>
+                    )}
+                  </div>
+                  {partido.comentario && (
+                    <p className="text-sm text-gray-500 mt-2 italic">"{partido.comentario}"</p>
+                  )}
                 </div>
               ))}
             </div>

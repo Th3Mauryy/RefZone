@@ -381,25 +381,35 @@ export async function getArbitroHistorial(arbitroId: string) {
     arbitro: arbitroId,
     estado: 'Finalizado'
   })
-    .select('nombre fecha hora ubicacion originalId calificado')
+    .select('nombre fecha hora ubicacion originalId calificado calificacionArbitro comentarioCalificacion')
     .sort({ fechaEliminacion: -1 })
     .limit(20)
     .lean();
 
   const historialConCalificaciones = historialPartidos.map((partido: any) => {
-    const calificacion = (arbitro as any).calificaciones?.find(
-      (c: any) => String(c.partidoId) === String(partido._id)
-    );
+    // Primero buscar la calificación en el historial del partido mismo
+    let calificacion = partido.calificacionArbitro;
+    let comentario = partido.comentarioCalificacion;
+    
+    // Si no está en el historial, buscar en las calificaciones del árbitro
+    if (!calificacion && (arbitro as any).calificaciones) {
+      const calificacionArbitro = (arbitro as any).calificaciones?.find(
+        (c: any) => String(c.partidoId) === String(partido.originalId) || String(c.partidoId) === String(partido._id)
+      );
+      if (calificacionArbitro) {
+        calificacion = calificacionArbitro.estrellas;
+        comentario = calificacionArbitro.comentario;
+      }
+    }
 
     return {
-      _id: partido.originalId,
+      _id: partido.originalId || partido._id,
       nombre: partido.nombre,
       fecha: partido.fecha,
       hora: partido.hora,
       ubicacion: partido.ubicacion,
-      calificacion: calificacion?.estrellas || null,
-      comentario: calificacion?.comentario || null,
-      organizador: calificacion?.organizadorId?.nombre || null
+      calificacion: calificacion || null,
+      comentario: comentario || null
     };
   });
 

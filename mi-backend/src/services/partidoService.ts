@@ -137,7 +137,9 @@ export async function moverAHistorial(partido: any): Promise<any> {
             razonEliminacion: 'automatica',
             mesPartido: mes,
             anoPartido: ano,
-            calificado: false
+            calificado: partido.calificacionArbitro ? true : false,
+            calificacionArbitro: partido.calificacionArbitro || null,
+            comentarioCalificacion: partido.comentarioCalificacion || null
         });
         
         await historial.save();

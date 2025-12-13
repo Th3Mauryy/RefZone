@@ -61,6 +61,16 @@ const historialPartidoSchema = new Schema<IHistorialPartidoDocument>({
   calificado: {
     type: Boolean,
     default: false
+  },
+  calificacionArbitro: {
+    type: Number,
+    min: 1,
+    max: 5,
+    default: null
+  },
+  comentarioCalificacion: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true

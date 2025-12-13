@@ -121,6 +121,8 @@ export interface IHistorialPartido {
   mesPartido: number;
   anoPartido: number;
   calificado: boolean;
+  calificacionArbitro?: number | null;
+  comentarioCalificacion?: string | null;
 }
 
 export interface IHistorialPartidoDocument extends IHistorialPartido, Document, ITimestamps {}
