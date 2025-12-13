@@ -3,19 +3,16 @@ import { showError, showSuccess, showWarning } from '../utils/toast';
 
 interface Game {
   _id?: string;
-  nombrePartido: string;
-  fecha: string;
-  horaInicio: string;
-  horaFin?: string;
-  ubicacion: {
-    nombre?: string;
-    direccion?: string;
-  };
+  name: string;
+  date: string;
+  time: string;
+  location: string;
+  ubicacionId?: string;
   arbitro?: {
     _id: string;
     nombre: string;
-    apellido: string;
-  };
+    apellido?: string;
+  } | null;
   calificacionArbitro?: number;
   estado?: string;
 }
@@ -45,12 +42,24 @@ type JsPDF = new () => {
 
 const formatDate = (dateString: string): string => {
   if (!dateString) return 'N/A';
-  const date = new Date(dateString);
+  
+  let date: Date;
+  if (dateString.includes('/')) {
+    // Formato DD/MM/YYYY
+    const [day, month, year] = dateString.split('/').map(Number);
+    date = new Date(year, month - 1, day);
+  } else if (dateString.includes('-')) {
+    // Formato YYYY-MM-DD
+    const [year, month, day] = dateString.split('-').map(Number);
+    date = new Date(year, month - 1, day);
+  } else {
+    date = new Date(dateString);
+  }
+  
   return date.toLocaleDateString('es-MX', { 
     day: '2-digit', 
     month: '2-digit', 
-    year: 'numeric',
-    timeZone: 'America/Mexico_City'
+    year: 'numeric'
   });
 };
 
@@ -84,10 +93,32 @@ export const descargarReportePDF = async (
   }
 
   // Filtrar partidos del mes seleccionado
+  console.log('Games recibidos:', games.length, games);
   const partidosMes = games.filter(g => {
-    const date = new Date(g.fecha);
-    return date.getMonth() + 1 === mes && date.getFullYear() === ano;
+    // El campo es 'date' no 'fecha'
+    if (!g.date) return false;
+    
+    // Parsear la fecha correctamente
+    let dateObj: Date;
+    if (g.date.includes('/')) {
+      // Formato DD/MM/YYYY
+      const [day, month, year] = g.date.split('/').map(Number);
+      dateObj = new Date(year, month - 1, day);
+    } else if (g.date.includes('-')) {
+      // Formato YYYY-MM-DD
+      const [year, month, day] = g.date.split('-').map(Number);
+      dateObj = new Date(year, month - 1, day);
+    } else {
+      dateObj = new Date(g.date);
+    }
+    
+    const matchMonth = dateObj.getMonth() + 1 === mes;
+    const matchYear = dateObj.getFullYear() === ano;
+    console.log(`Partido ${g.name}: date=${g.date}, mes=${dateObj.getMonth() + 1}, año=${dateObj.getFullYear()}, match=${matchMonth && matchYear}`);
+    return matchMonth && matchYear;
   });
+
+  console.log('Partidos filtrados:', partidosMes.length);
 
   if (partidosMes.length === 0) {
     showWarning('No hay partidos en el mes seleccionado');
@@ -179,9 +210,19 @@ export const descargarReportePDF = async (
     currentY += 10;
 
     // Ordenar partidos por fecha
-    const partidosOrdenados = [...partidosMes].sort((a, b) => 
-      new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
-    );
+    const partidosOrdenados = [...partidosMes].sort((a, b) => {
+      const getDate = (dateStr: string) => {
+        if (dateStr.includes('/')) {
+          const [day, month, year] = dateStr.split('/').map(Number);
+          return new Date(year, month - 1, day).getTime();
+        } else if (dateStr.includes('-')) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          return new Date(year, month - 1, day).getTime();
+        }
+        return new Date(dateStr).getTime();
+      };
+      return getDate(a.date) - getDate(b.date);
+    });
 
     partidosOrdenados.forEach((partido, index) => {
       // Nueva página si no hay espacio
@@ -199,22 +240,22 @@ export const descargarReportePDF = async (
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(40, 40, 40);
-      doc.text(`${index + 1}. ${partido.nombrePartido}`, 20, currentY);
+      doc.text(`${index + 1}. ${partido.name}`, 20, currentY);
 
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(80, 80, 80);
       
       currentY += 7;
-      doc.text(`📅 ${formatDate(partido.fecha)}`, 25, currentY);
-      doc.text(`🕐 ${formatTime(partido.horaInicio)}${partido.horaFin ? ' - ' + formatTime(partido.horaFin) : ''}`, 70, currentY);
+      doc.text(`📅 ${formatDate(partido.date)}`, 25, currentY);
+      doc.text(`🕐 ${formatTime(partido.time)}`, 70, currentY);
       
       currentY += 7;
-      doc.text(`📍 ${partido.ubicacion?.nombre || partido.ubicacion?.direccion || 'Sin ubicación'}`, 25, currentY);
+      doc.text(`📍 ${partido.location || 'Sin ubicación'}`, 25, currentY);
       
       currentY += 7;
       const arbitroNombre = partido.arbitro 
-        ? `${partido.arbitro.nombre} ${partido.arbitro.apellido}`
+        ? `${partido.arbitro.nombre}${partido.arbitro.apellido ? ' ' + partido.arbitro.apellido : ''}`
         : 'Sin asignar';
       doc.text(`⚽ Árbitro: ${arbitroNombre}`, 25, currentY);
       
