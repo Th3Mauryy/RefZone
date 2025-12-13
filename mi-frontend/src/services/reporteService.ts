@@ -1,286 +1,399 @@
 // @ts-nocheck
 import { showError, showSuccess, showWarning } from '../utils/toast';
 
-interface Game {
-  _id?: string;
-  name: string;
-  date: string;
-  time: string;
-  location: string;
-  ubicacionId?: string;
-  arbitro?: {
-    _id: string;
+interface PartidoReporte {
+  id: string;
+  nombre: string;
+  fecha: string;
+  hora: string;
+  ubicacion: string;
+  cancha: string;
+  arbitro: string;
+  tieneArbitro: boolean;
+  estado: string;
+  esHistorial: boolean;
+}
+
+interface DatosReporte {
+  cancha: {
     nombre: string;
-    apellido?: string;
-  } | null;
-  calificacionArbitro?: number;
-  estado?: string;
-}
-
-interface User {
-  _id: string;
-  nombre?: string;
-  apellido?: string;
-  username?: string;
-}
-
-type JsPDF = new () => {
-  internal: {
-    pageSize: { width: number; height: number };
+    direccion: string;
+    telefono: string;
+    email: string;
   };
-  setFillColor: (r: number, g: number, b: number) => void;
-  rect: (x: number, y: number, w: number, h: number, style: string) => void;
-  setTextColor: (r: number, g: number, b: number) => void;
-  setFontSize: (size: number) => void;
-  setFont: (family: string, style?: string) => void;
-  text: (text: string, x: number, y: number, options?: { align?: string }) => void;
-  setDrawColor: (r: number, g: number, b: number) => void;
-  line: (x1: number, y1: number, x2: number, y2: number) => void;
-  addPage: () => void;
-  save: (filename: string) => void;
-};
+  periodo: {
+    mes: string;
+    anio: number;
+  };
+  partidos: PartidoReporte[];
+  estadisticas: {
+    total: number;
+    conArbitro: number;
+    sinArbitro: number;
+    programados: number;
+    enCurso: number;
+    finalizados: number;
+    cancelados: number;
+  };
+  fechaGeneracion: string;
+}
 
-const formatDate = (dateString: string): string => {
-  if (!dateString) return 'N/A';
-  
-  let date: Date;
-  if (dateString.includes('/')) {
-    // Formato DD/MM/YYYY
-    const [day, month, year] = dateString.split('/').map(Number);
-    date = new Date(year, month - 1, day);
-  } else if (dateString.includes('-')) {
-    // Formato YYYY-MM-DD
-    const [year, month, day] = dateString.split('-').map(Number);
-    date = new Date(year, month - 1, day);
-  } else {
-    date = new Date(dateString);
-  }
-  
-  return date.toLocaleDateString('es-MX', { 
-    day: '2-digit', 
-    month: '2-digit', 
-    year: 'numeric'
-  });
-};
-
-const formatTime = (timeString: string): string => {
-  if (!timeString) return 'N/A';
-  const [hour, minute] = timeString.split(':').map(Number);
-  const isPM = hour >= 12;
-  const hour12 = hour % 12 || 12;
-  return `${hour12}:${minute.toString().padStart(2, '0')} ${isPM ? 'PM' : 'AM'}`;
-};
+const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+];
 
 const getMesNombre = (mes: number): string => {
-  const meses = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
-  return meses[mes - 1] || '';
+  return MESES[mes - 1] || '';
+};
+
+const formatearFecha = (fechaStr: string): string => {
+  if (!fechaStr) return 'N/A';
+  
+  let fecha: Date;
+  if (fechaStr.includes('-')) {
+    fecha = new Date(fechaStr + 'T00:00:00');
+  } else if (fechaStr.includes('/')) {
+    const partes = fechaStr.split('/');
+    if (partes.length === 3) {
+      if (parseInt(partes[0]) > 12) {
+        // DD/MM/YYYY
+        fecha = new Date(parseInt(partes[2]), parseInt(partes[1]) - 1, parseInt(partes[0]));
+      } else {
+        // MM/DD/YYYY
+        fecha = new Date(parseInt(partes[2]), parseInt(partes[0]) - 1, parseInt(partes[1]));
+      }
+    } else {
+      return fechaStr;
+    }
+  } else {
+    return fechaStr;
+  }
+  
+  if (isNaN(fecha.getTime())) return fechaStr;
+  
+  const day = fecha.getDate().toString().padStart(2, '0');
+  const month = (fecha.getMonth() + 1).toString().padStart(2, '0');
+  const year = fecha.getFullYear();
+  
+  return `${day}/${month}/${year}`;
+};
+
+const getEstadoColor = (estado: string): string => {
+  switch (estado) {
+    case 'Programado': return '#22c55e'; // verde
+    case 'En curso': return '#3b82f6'; // azul
+    case 'Finalizado': return '#f59e0b'; // amarillo/naranja
+    case 'Cancelado': return '#ef4444'; // rojo
+    default: return '#6b7280'; // gris
+  }
 };
 
 export const descargarReportePDF = async (
   mes: number,
-  ano: number,
-  games: Game[],
-  user: User | null
+  ano: number
 ): Promise<void> => {
-  // Verificar que jsPDF está disponible
-  const jsPDFConstructor = (window as unknown as { jsPDF?: JsPDF }).jsPDF;
-  if (!jsPDFConstructor) {
-    showError('Error: jsPDF no está disponible');
-    throw new Error('jsPDF not available');
-  }
-
-  // Filtrar partidos del mes seleccionado
-  console.log('Games recibidos:', games.length, games);
-  const partidosMes = games.filter(g => {
-    // El campo es 'date' no 'fecha'
-    if (!g.date) return false;
-    
-    // Parsear la fecha correctamente
-    let dateObj: Date;
-    if (g.date.includes('/')) {
-      // Formato DD/MM/YYYY
-      const [day, month, year] = g.date.split('/').map(Number);
-      dateObj = new Date(year, month - 1, day);
-    } else if (g.date.includes('-')) {
-      // Formato YYYY-MM-DD
-      const [year, month, day] = g.date.split('-').map(Number);
-      dateObj = new Date(year, month - 1, day);
-    } else {
-      dateObj = new Date(g.date);
-    }
-    
-    const matchMonth = dateObj.getMonth() + 1 === mes;
-    const matchYear = dateObj.getFullYear() === ano;
-    console.log(`Partido ${g.name}: date=${g.date}, mes=${dateObj.getMonth() + 1}, año=${dateObj.getFullYear()}, match=${matchMonth && matchYear}`);
-    return matchMonth && matchYear;
-  });
-
-  console.log('Partidos filtrados:', partidosMes.length);
-
-  if (partidosMes.length === 0) {
-    showWarning('No hay partidos en el mes seleccionado');
-    throw new Error('No games in selected month');
-  }
-
+  const mesNombre = getMesNombre(mes);
+  
   try {
-    const doc = new jsPDFConstructor();
-    const pageWidth = doc.internal.pageSize.width;
-    let currentY = 20;
-    const lineHeight = 8;
-
-    // Header con fondo verde
-    doc.setFillColor(34, 197, 94);
-    doc.rect(0, 0, pageWidth, 40, 'F');
+    // Obtener datos del backend
+    const token = localStorage.getItem('token');
+    const response = await fetch(`/api/reportes/reporte-datos?mes=${mesNombre}&anio=${ano}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
     
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RefZone', pageWidth / 2, 18, { align: 'center' });
-    
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Reporte de Partidos - ${getMesNombre(mes)} ${ano}`, pageWidth / 2, 30, { align: 'center' });
-
-    currentY = 55;
-
-    // Información del organizador
-    doc.setTextColor(60, 60, 60);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Organizador:', 15, currentY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(user?.nombre && user?.apellido 
-      ? `${user.nombre} ${user.apellido}` 
-      : user?.username || 'No identificado', 45, currentY);
-
-    currentY += lineHeight;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Fecha de generación:', 15, currentY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(new Date().toLocaleDateString('es-MX', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      timeZone: 'America/Mexico_City'
-    }), 60, currentY);
-
-    currentY += lineHeight;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Total de partidos:', 15, currentY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(partidosMes.length.toString(), 52, currentY);
-
-    currentY += lineHeight + 5;
-
-    // Línea separadora
-    doc.setDrawColor(200, 200, 200);
-    doc.line(15, currentY, pageWidth - 15, currentY);
-    currentY += 10;
-
-    // Resumen estadístico
-    const partidosConArbitro = partidosMes.filter(p => p.arbitro);
-    const partidosSinArbitro = partidosMes.filter(p => !p.arbitro);
-    const promedioCalificacion = partidosConArbitro.filter(p => p.calificacionArbitro)
-      .reduce((acc, p, _, arr) => acc + (p.calificacionArbitro || 0) / arr.length, 0);
-
-    doc.setFillColor(245, 245, 245);
-    doc.rect(15, currentY - 5, pageWidth - 30, 25, 'F');
-    
-    doc.setFontSize(10);
-    doc.setTextColor(60, 60, 60);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Resumen:', 20, currentY + 3);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Con árbitro: ${partidosConArbitro.length}`, 20, currentY + 12);
-    doc.text(`Sin árbitro: ${partidosSinArbitro.length}`, 70, currentY + 12);
-    if (promedioCalificacion > 0) {
-      doc.text(`Promedio calificación: ${promedioCalificacion.toFixed(1)} ⭐`, 120, currentY + 12);
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 404 || error.message?.includes('No hay partidos')) {
+        showWarning('No hay partidos en el mes seleccionado');
+      } else {
+        showError(error.message || 'Error al obtener datos del reporte');
+      }
+      throw new Error(error.message || 'Error al obtener datos');
     }
-
-    currentY += 30;
-
-    // Detalle de partidos
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(34, 197, 94);
-    doc.text('Detalle de Partidos', 15, currentY);
-    currentY += 10;
-
-    // Ordenar partidos por fecha
-    const partidosOrdenados = [...partidosMes].sort((a, b) => {
-      const getDate = (dateStr: string) => {
-        if (dateStr.includes('/')) {
-          const [day, month, year] = dateStr.split('/').map(Number);
-          return new Date(year, month - 1, day).getTime();
-        } else if (dateStr.includes('-')) {
-          const [year, month, day] = dateStr.split('-').map(Number);
-          return new Date(year, month - 1, day).getTime();
-        }
-        return new Date(dateStr).getTime();
-      };
-      return getDate(a.date) - getDate(b.date);
-    });
-
-    partidosOrdenados.forEach((partido, index) => {
-      // Nueva página si no hay espacio
-      if (currentY > 250) {
-        doc.addPage();
-        currentY = 20;
-      }
-
-      // Fondo alternado
-      if (index % 2 === 0) {
-        doc.setFillColor(250, 250, 250);
-        doc.rect(15, currentY - 4, pageWidth - 30, 30, 'F');
-      }
-
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(40, 40, 40);
-      doc.text(`${index + 1}. ${partido.name}`, 20, currentY);
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(80, 80, 80);
+    
+    const datos: DatosReporte = await response.json();
+    
+    if (!datos.partidos || datos.partidos.length === 0) {
+      showWarning('No hay partidos en el mes seleccionado');
+      throw new Error('No hay partidos');
+    }
+    
+    // Generar HTML del reporte
+    const htmlContent = generarHTMLReporte(datos);
+    
+    // Abrir en nueva ventana para imprimir/guardar como PDF
+    const ventana = window.open('', '_blank');
+    if (ventana) {
+      ventana.document.write(htmlContent);
+      ventana.document.close();
       
-      currentY += 7;
-      doc.text(`📅 ${formatDate(partido.date)}`, 25, currentY);
-      doc.text(`🕐 ${formatTime(partido.time)}`, 70, currentY);
+      // Esperar a que cargue el contenido y luego imprimir
+      setTimeout(() => {
+        ventana.print();
+      }, 500);
       
-      currentY += 7;
-      doc.text(`📍 ${partido.location || 'Sin ubicación'}`, 25, currentY);
-      
-      currentY += 7;
-      const arbitroNombre = partido.arbitro 
-        ? `${partido.arbitro.nombre}${partido.arbitro.apellido ? ' ' + partido.arbitro.apellido : ''}`
-        : 'Sin asignar';
-      doc.text(`⚽ Árbitro: ${arbitroNombre}`, 25, currentY);
-      
-      if (partido.calificacionArbitro) {
-        doc.text(`⭐ ${partido.calificacionArbitro}/5`, 120, currentY);
-      }
-
-      currentY += 12;
-    });
-
-    // Pie de página
-    const totalPages = doc.internal.pageSize.height;
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('Generado por RefZone', pageWidth / 2, totalPages - 10, { align: 'center' });
-
-    // Descargar
-    doc.save(`RefZone_Reporte_${getMesNombre(mes)}_${ano}.pdf`);
-    showSuccess('Reporte descargado correctamente');
-  } catch (error) {
-    console.error('Error generando PDF:', error);
-    showError('Error al generar el reporte PDF');
+      showSuccess('Reporte generado correctamente');
+    } else {
+      showError('No se pudo abrir la ventana de impresión. Verifica que no estén bloqueados los popups.');
+    }
+  } catch (error: any) {
+    console.error('Error generando reporte:', error);
+    if (!error.message?.includes('No hay partidos')) {
+      showError('Error al generar el reporte');
+    }
     throw error;
   }
 };
+
+function generarHTMLReporte(datos: DatosReporte): string {
+  const { cancha, periodo, partidos, estadisticas } = datos;
+  
+  const partidosHTML = partidos.map(p => `
+    <tr>
+      <td>${formatearFecha(p.fecha)}</td>
+      <td>${p.nombre}</td>
+      <td>${p.hora || 'N/A'}</td>
+      <td>${p.ubicacion || cancha.nombre}</td>
+      <td>${p.arbitro}</td>
+      <td style="color: ${getEstadoColor(p.estado)}; font-weight: bold;">${p.estado}</td>
+    </tr>
+  `).join('');
+  
+  return `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Reporte de Partidos - ${cancha.nombre} - ${periodo.mes} ${periodo.anio}</title>
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          background: #f5f5f5;
+          color: #333;
+          line-height: 1.6;
+        }
+        .container {
+          max-width: 900px;
+          margin: 0 auto;
+          background: white;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+          background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+          color: white;
+          padding: 30px;
+          text-align: center;
+        }
+        .header h1 {
+          font-size: 28px;
+          margin-bottom: 5px;
+        }
+        .header h2 {
+          font-size: 22px;
+          font-weight: normal;
+          margin-bottom: 5px;
+        }
+        .header p {
+          font-size: 16px;
+          opacity: 0.9;
+        }
+        .content {
+          padding: 30px;
+        }
+        .section {
+          margin-bottom: 30px;
+        }
+        .section-title {
+          font-size: 18px;
+          font-weight: bold;
+          color: #22c55e;
+          margin-bottom: 15px;
+          padding-bottom: 8px;
+          border-bottom: 2px solid #22c55e;
+        }
+        .info-box {
+          background: #f8f9fa;
+          border-left: 4px solid #22c55e;
+          padding: 15px 20px;
+          margin-bottom: 20px;
+        }
+        .info-box p {
+          margin: 5px 0;
+        }
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+          gap: 15px;
+          margin-bottom: 20px;
+        }
+        .stat-card {
+          text-align: center;
+          padding: 15px;
+          border-radius: 8px;
+          color: white;
+        }
+        .stat-card.total { background: #3b82f6; }
+        .stat-card.con-arbitro { background: #22c55e; }
+        .stat-card.sin-arbitro { background: #f59e0b; }
+        .stat-card.programados { background: #22c55e; }
+        .stat-card.en-curso { background: #3b82f6; }
+        .stat-card.finalizados { background: #f59e0b; }
+        .stat-card.cancelados { background: #ef4444; }
+        .stat-card .number {
+          font-size: 32px;
+          font-weight: bold;
+        }
+        .stat-card .label {
+          font-size: 12px;
+          text-transform: uppercase;
+          opacity: 0.9;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 15px;
+        }
+        th {
+          background: #22c55e;
+          color: white;
+          padding: 12px 10px;
+          text-align: left;
+          font-size: 13px;
+          text-transform: uppercase;
+        }
+        td {
+          padding: 10px;
+          border-bottom: 1px solid #e5e7eb;
+          font-size: 13px;
+        }
+        tr:nth-child(even) {
+          background: #f9fafb;
+        }
+        tr:hover {
+          background: #f3f4f6;
+        }
+        .footer {
+          text-align: center;
+          padding: 20px;
+          background: #f8f9fa;
+          color: #6b7280;
+          font-size: 12px;
+        }
+        @media print {
+          body { background: white; }
+          .container { box-shadow: none; }
+          .header { 
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .stat-card {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          th {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>RefZone - Reporte de Partidos</h1>
+          <h2>${cancha.nombre}</h2>
+          <p>${periodo.mes} de ${periodo.anio}</p>
+        </div>
+        
+        <div class="content">
+          <div class="section">
+            <div class="section-title">Información de la cancha:</div>
+            <div class="info-box">
+              <p><strong>Dirección:</strong> ${cancha.direccion}</p>
+              <p><strong>Contacto:</strong> ${cancha.telefono}</p>
+              <p><strong>Email:</strong> ${cancha.email}</p>
+            </div>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">Resumen del período:</div>
+            <div class="stats-grid">
+              <div class="stat-card total">
+                <div class="number">${estadisticas.total}</div>
+                <div class="label">Total partidos</div>
+              </div>
+              <div class="stat-card con-arbitro">
+                <div class="number">${estadisticas.conArbitro}</div>
+                <div class="label">Con árbitro</div>
+              </div>
+              <div class="stat-card sin-arbitro">
+                <div class="number">${estadisticas.sinArbitro}</div>
+                <div class="label">Sin árbitro</div>
+              </div>
+              <div class="stat-card programados">
+                <div class="number">${estadisticas.programados}</div>
+                <div class="label">Programados</div>
+              </div>
+              <div class="stat-card en-curso">
+                <div class="number">${estadisticas.enCurso}</div>
+                <div class="label">En curso</div>
+              </div>
+              <div class="stat-card finalizados">
+                <div class="number">${estadisticas.finalizados}</div>
+                <div class="label">Finalizados</div>
+              </div>
+              <div class="stat-card cancelados">
+                <div class="number">${estadisticas.cancelados}</div>
+                <div class="label">Cancelados</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">Lista de partidos:</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Nombre</th>
+                  <th>Hora</th>
+                  <th>Ubicación</th>
+                  <th>Árbitro</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${partidosHTML}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <p>Reporte generado el ${new Date().toLocaleString('es-MX', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}</p>
+          <p>RefZone - Gestión de Partidos Deportivos</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
 
 export default {
   descargarReportePDF,

@@ -79,7 +79,7 @@ export default function DashboardOrganizador() {
   const handleDownloadPDF = async (mes: number, ano: number) => {
     setReporteModal(prev => ({ ...prev, cargando: true }));
     try {
-      await descargarReportePDF(mes, ano, games, user);
+      await descargarReportePDF(mes, ano);
       setReporteModal(prev => ({ ...prev, open: false, cargando: false }));
     } catch {
       setReporteModal(prev => ({ ...prev, cargando: false }));
